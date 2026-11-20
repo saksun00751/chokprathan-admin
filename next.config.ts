@@ -5,15 +5,17 @@ const isDev = process.env.NODE_ENV === "development";
 /**
  * Content Security Policy without nonces: nonces need fully dynamic rendering, which Partial
  * Prerendering cannot do (see the Next.js CSP guide). Scripts are limited to this origin plus the
- * inline bootstrap Next.js emits; nothing may load from or send to another origin, and the site
- * cannot be framed.
+ * inline bootstrap Next.js emits; nothing may load from or send to another origin, and the back
+ * office cannot be framed.
  */
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  // Game art is served by the game aggregator's CDNs (hosts vary by provider): images only.
-  "img-src 'self' data: blob: https:",
+  // Same-origin images only: slips and banners come from /media, the 2-step QR is a data: URL and
+  // a banner being edited is previewed from a blob: URL. (The member site also allows https: for
+  // aggregator game art, which the back office never shows.)
+  "img-src 'self' data: blob:",
   "font-src 'self'",
   "connect-src 'self'",
   "media-src 'none'",
@@ -58,8 +60,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
-      // Back-office pages are dynamic (Next.js already sends no-store); keep them out of search engines too.
-      { source: "/admin/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // The whole app is the back office (pages are dynamic, Next.js already sends no-store): keep every path out of search engines.
+      { source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
   turbopack: {
