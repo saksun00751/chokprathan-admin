@@ -5,7 +5,7 @@ import { previousRange, resolveRange, type DateRange } from "@/domain/periods";
 import { BKK_OFFSET_MS } from "@/domain/time";
 import type { LottoGroup } from "@/domain/types";
 import { q, q1 } from "@/server/db";
-import { can } from "@/server/services/auth";
+import { can } from "@/server/services/employee-auth";
 import { listLottos } from "@/server/services/lottos";
 import { limitsForRounds } from "@/server/services/risk";
 import type { Locale } from "@/i18n/config";

@@ -208,7 +208,7 @@ export interface BankMoveRow {
 export async function bankMoves(accountId: number, limit = 100): Promise<BankMoveRow[]> {
   return q<BankMoveRow>(
     `SELECT m.id, m.amount, m.balance_after, m.kind, m.ref, m.note, m.created_at, COALESCE(u.username, u.name) AS staff
-     FROM bank_account_moves m LEFT JOIN users u ON u.id = m.actor_id
+     FROM bank_account_moves m LEFT JOIN employees u ON u.id = m.actor_id
      WHERE m.account_id = ? ORDER BY m.id DESC LIMIT ?`,
     accountId,
     limit,

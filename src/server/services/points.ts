@@ -95,7 +95,7 @@ export async function pointsOf(userId: number, limit = 50): Promise<{ points: nu
       q1<{ points: number }>("SELECT points FROM member_points WHERE user_id = ?", userId),
       q<PointMove>(
         `SELECT m.id, m.amount, m.balance_after, m.kind, m.ref, m.note, m.created_at, COALESCE(s.username, s.name) AS staff
-         FROM point_moves m LEFT JOIN users s ON s.id = m.actor_id
+         FROM point_moves m LEFT JOIN employees s ON s.id = m.actor_id
          WHERE m.user_id = ? ORDER BY m.id DESC LIMIT ?`,
         userId,
         limit,

@@ -1,16 +1,12 @@
 import "server-only";
 import { fmt } from "@/i18n/format";
 import { errorsT } from "@/i18n/server";
-import { randomInt } from "node:crypto";
 import { formatBaht } from "@/domain/money";
-import { dayKey, dayStartMs } from "@/domain/time";
 import { json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
-import { bankMove, payoutAccounts, receivingAccount } from "./banks";
-import { getSettings } from "./settings";
-import { InsufficientFundsError, move } from "./wallet";
+import { bankMove, payoutAccounts } from "./banks";
+import { move } from "./wallet";
 import { awardPoints } from "./points";
-import { isBlocked } from "./blocklist";
 
 export interface ReceivingAccount {
   bank: string;
@@ -86,94 +82,6 @@ async function promotionProblem(userId: number, promotionId: number, amount: num
     return e.wallet.promoUsed;
   }
   return null;
-}
-
-/** Start a deposit. The member transfers `amount` (with a unique satang tail) to the receiving account. */
-export async function createDeposit(
-  userId: number,
-  baseAmount: number,
-  promotionId: number | null,
-  now = Date.now(),
-): Promise<{ ok: true; deposit: Deposit } | Fail> {
-  const { wallet: w } = await getSettings();
-  const e = await errorsT();
-  if (!Number.isInteger(baseAmount) || baseAmount % 100 !== 0) return { ok: false, error: e.wallet.wholeBaht };
-  if (baseAmount < w.depositMin) return { ok: false, error: fmt(e.wallet.depositMin, { amount: formatBaht(w.depositMin, { decimals: "auto" }) }) };
-  if (baseAmount > w.depositMax) return { ok: false, error: fmt(e.wallet.depositMax, { amount: formatBaht(w.depositMax, { decimals: "auto" }) }) };
-  if (promotionId !== null) {
-    const problem = await promotionProblem(userId, promotionId, baseAmount);
-    if (problem) return { ok: false, error: problem };
-  }
-  const bank = await receivingAccount();
-  if (!bank) return { ok: false, error: e.wallet.noReceivingAccount };
-  const account = { bank: bank.bankCode, account: bank.accountNo, name: bank.accountName };
-
-  return tx(async () => {
-    await run("UPDATE deposits SET status = 'expired', note = 'สร้างรายการใหม่แทน' WHERE user_id = ? AND status = 'awaiting'", userId);
-    let amount = baseAmount + randomInt(1, 100);
-    for (let tries = 0; tries < 50; tries++) {
-      if (!(await q1("SELECT 1 FROM deposits WHERE amount = ? AND status IN ('awaiting','pending')", amount))) break;
-      amount = baseAmount + randomInt(1, 100);
-    }
-    const id = (
-      await run(
-        `INSERT INTO deposits (user_id, amount, promotion_id, status, to_bank, bank_account_id, created_at, expires_at)
-         VALUES (?, ?, ?, 'awaiting', ?, ?, ?, ?)`,
-        userId,
-        amount,
-        promotionId,
-        json.str(account),
-        bank.id,
-        now,
-        now + w.depositWindowMin * 60_000,
-      )
-    ).lastId;
-    const row = (await q1<DepositRow>("SELECT * FROM deposits WHERE id = ?", id))!;
-    return { ok: true as const, deposit: toDeposit(row) };
-  });
-}
-
-/** Attach (or replace) the transfer slip of a deposit that is not reviewed yet. */
-export async function attachSlip(userId: number, depositId: number, slipName: string): Promise<{ ok: true; previous: string | null } | Fail> {
-  const e = await errorsT();
-  return tx(async () => {
-    const d = await q1<DepositRow>("SELECT * FROM deposits WHERE id = ? AND user_id = ? FOR UPDATE", depositId, userId);
-    if (!d) return { ok: false as const, error: e.wallet.depositNotFound };
-    if (d.status !== "awaiting" && d.status !== "pending") return { ok: false as const, error: e.wallet.alreadyProcessed };
-    await run("UPDATE deposits SET slip = ? WHERE id = ?", slipName, depositId);
-    return { ok: true as const, previous: d.slip };
-  });
-}
-
-/** Member says the transfer is done. With auto-approve on (demo only), it is credited immediately. */
-export async function confirmDeposit(userId: number, depositId: number, now = Date.now()): Promise<{ ok: true; approved: boolean } | Fail> {
-  const { wallet } = await getSettings();
-  const e = await errorsT();
-  const outcome = await tx(async (): Promise<{ ok: true } | Fail> => {
-    const d = await q1<DepositRow>("SELECT * FROM deposits WHERE id = ? AND user_id = ? FOR UPDATE", depositId, userId);
-    if (!d) return { ok: false, error: e.wallet.depositNotFound };
-    if (d.status !== "awaiting") return { ok: false, error: e.wallet.alreadyProcessed };
-    if (now > d.expires_at) {
-      await run("UPDATE deposits SET status = 'expired' WHERE id = ?", depositId);
-      return { ok: false, error: e.wallet.depositExpired };
-    }
-    if (wallet.slipRequired && !wallet.depositAutoApprove && !d.slip) return { ok: false, error: e.wallet.slipFirst };
-    await run("UPDATE deposits SET status = 'pending', confirmed_at = ? WHERE id = ?", now, depositId);
-    return { ok: true };
-  });
-  if (!outcome.ok) return outcome;
-  if (wallet.depositAutoApprove) {
-    const r = await approveDeposit(depositId, null, now);
-    return r.ok ? { ok: true, approved: true } : r;
-  }
-  return { ok: true, approved: false };
-}
-
-export async function cancelDeposit(userId: number, depositId: number) {
-  return (
-    (await run("UPDATE deposits SET status = 'expired', note = 'ยกเลิกโดยสมาชิก' WHERE id = ? AND user_id = ? AND status = 'awaiting'", depositId, userId))
-      .changes > 0
-  );
 }
 
 export async function approveDeposit(depositId: number, actorId: number | null, now = Date.now(), ip: string | null = null): Promise<{ ok: true } | Fail> {
@@ -256,65 +164,6 @@ export interface WithdrawalRow {
   created_at: number;
   reviewed_at: number | null;
   reviewed_by: number | null;
-}
-
-/** Request a withdrawal to the member's bank account. The money is held until review. */
-export async function requestWithdrawal(userId: number, amount: number, now = Date.now()): Promise<{ ok: true; id: number } | Fail> {
-  const { wallet: w } = await getSettings();
-  const e = await errorsT();
-  if (!Number.isInteger(amount) || amount % 100 !== 0) return { ok: false, error: e.wallet.wholeBaht };
-  if (amount < w.withdrawMin) return { ok: false, error: fmt(e.wallet.withdrawMin, { amount: formatBaht(w.withdrawMin, { decimals: "auto" }) }) };
-  if (amount > w.withdrawMax) return { ok: false, error: fmt(e.wallet.withdrawMax, { amount: formatBaht(w.withdrawMax, { decimals: "auto" }) }) };
-
-  try {
-    return await tx(async (): Promise<{ ok: true; id: number } | Fail> => {
-      // The wallet row lock serialises a member's withdrawals, so the daily count cannot be raced.
-      const user = await q1<{
-        status: string;
-        role: string;
-        balance: number;
-        turnover_required: number;
-        bank_code: string | null;
-        bank_account: string | null;
-        bank_name: string | null;
-        phone: string | null;
-        name: string;
-      }>("SELECT status, role, balance, turnover_required, bank_code, bank_account, bank_name, phone, name FROM users WHERE id = ? FOR UPDATE", userId);
-      if (!user || user.status !== "active" || user.role !== "member") return { ok: false, error: e.wallet.accountUnusable };
-      if (!user.bank_code || !user.bank_account || !user.bank_name) return { ok: false, error: e.wallet.addBankFirst };
-      // A blocked account, phone, or name never gets money out.
-      if (await isBlocked({ phone: user.phone, bankCode: user.bank_code, bankAccount: user.bank_account, name: user.name, bankName: user.bank_name })) {
-        return { ok: false, error: e.wallet.blocked };
-      }
-      if (user.turnover_required > 0) {
-        return { ok: false, error: fmt(e.wallet.turnoverLeft, { amount: formatBaht(user.turnover_required) }) };
-      }
-      const today = (await q1<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM withdrawals WHERE user_id = ? AND created_at >= ? AND status != 'rejected'",
-        userId,
-        dayStartMs(dayKey(now)),
-      ))!.n;
-      if (today >= w.withdrawPerDay) return { ok: false, error: fmt(e.wallet.perDay, { n: w.withdrawPerDay }) };
-      if (user.balance < amount) return { ok: false, error: e.wallet.insufficient };
-      const id = (
-        await run(
-          `INSERT INTO withdrawals (user_id, amount, bank_code, bank_account, bank_name, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          userId,
-          amount,
-          user.bank_code,
-          user.bank_account,
-          user.bank_name,
-          now,
-        )
-      ).lastId;
-      await move(userId, "balance", -amount, "withdraw", { ref: `WD${String(id).padStart(6, "0")}`, note: "ถอนเงิน", now });
-      return { ok: true, id };
-    });
-  } catch (error) {
-    if (error instanceof InsufficientFundsError) return { ok: false, error: e.wallet.insufficient };
-    throw error;
-  }
 }
 
 /**

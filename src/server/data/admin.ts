@@ -6,7 +6,7 @@ import { maskAccount, maskPhone } from "@/domain/banks";
 import { dayKey, dayStartMs } from "@/domain/time";
 import type { LottoGroup, ResultFormat } from "@/domain/types";
 import { json, q, q1, tolerateMissingTable } from "@/server/db";
-import { can, type SessionUser } from "@/server/services/auth";
+import { can, type Employee } from "@/server/services/employee-auth";
 import { listBanners } from "@/server/services/banners";
 import type { DepositRow, WithdrawalRow } from "@/server/services/finance";
 import { betConfigs, getLotto, listLottos, type Lotto } from "@/server/services/lottos";
@@ -15,21 +15,26 @@ import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
 import { getRound, phaseOf, toRound, type RoundPhase, type RoundRow } from "@/server/services/rounds";
 import { pointsOf } from "@/server/services/points";
-import { ambAllowUnsigned, ambCallbackIps, ambHost, ambReady, ambSignatureKey } from "@/server/amb";
-import { gameHistory } from "@/server/data/games";
+import { gameHistory } from "@/server/data/game-history";
 import { blockedAmong, blocksFor, listBlocks, type BlockRow } from "@/server/services/blocklist";
 import { isBlockKind, type Identity } from "@/domain/blocklist";
 import { getSetting, getSettings } from "@/server/services/settings";
-import { smsConfigured } from "@/server/sms";
-import { listRoles, listStaff } from "@/server/services/staff";
+import { listRoles, listStaff } from "@/server/services/employees";
 import { recentStaffSignIns } from "@/server/logs";
 import { auditIntegrity } from "@/server/services/audit";
 import { bankMoves, listBankAccounts, payoutAccounts } from "@/server/services/banks";
 import { doorUrl, getStaff, needsTotpSetup, requireStaff } from "@/server/session";
 import { redirect } from "next/navigation";
 
+/** Whether the SMS provider the member app sends one-time codes with is configured in this environment. */
+const smsConfigured = () => {
+  const p = process.env.SMS_PROVIDER;
+  if (p === "thaibulksms") return !!(process.env.THAIBULKSMS_API_KEY && process.env.THAIBULKSMS_API_SECRET);
+  return p === "log" && process.env.NODE_ENV !== "production";
+};
+
 /** Phone and bank numbers in full only for staff allowed to contact members or pay them. */
-const contactView = (viewer: SessionUser) => {
+const contactView = (viewer: Employee) => {
   const full = can(viewer, "members.contact");
   return {
     phone: (p: string | null) => (full ? p : p ? maskPhone(p) : null),
@@ -283,11 +288,11 @@ export async function getMember(userId: number) {
     // Every staff change to this member's balance: who, how much, and why.
     q<{ id: number; amount: number; balance_after: number; note: string | null; created_at: number; staff: string | null }>(
       `SELECT t.id, t.amount, t.balance_after, t.note, t.created_at, COALESCE(s.username, s.name) AS staff
-       FROM transactions t LEFT JOIN users s ON s.id = t.actor_id
+       FROM transactions t LEFT JOIN employees s ON s.id = t.actor_id
        WHERE t.user_id = ? AND t.type = 'adjust' ORDER BY t.id DESC LIMIT 50`,
       userId,
     ),
-    user.closed_by ? q1<{ name: string }>("SELECT COALESCE(username, name) AS name FROM users WHERE id = ?", user.closed_by) : Promise.resolve(undefined),
+    user.closed_by ? q1<{ name: string }>("SELECT COALESCE(username, name) AS name FROM employees WHERE id = ?", user.closed_by) : Promise.resolve(undefined),
   ]);
   const view = contactView(viewer);
   const [points, pointRule, blocks, games] = await Promise.all([
@@ -489,7 +494,7 @@ export async function getAudit({ limit = 200, actorId, action }: { limit?: numbe
     actor: string | null;
   }>(
     `SELECT a.id, a.actor_id, a.action, a.target, a.detail, a.ip, a.ua, a.seq, a.created_at, COALESCE(u.username, u.name) AS actor
-     FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
+     FROM audit_log a LEFT JOIN employees u ON u.id = a.actor_id
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY a.created_at DESC, a.id DESC LIMIT ?`,
     ...params,
     limit,
@@ -536,7 +541,7 @@ export async function getStaffPage() {
 export async function getOwnSecurity() {
   const viewer = await requireStaffAllowingPasswordChange();
   await io();
-  const [row, site] = await Promise.all([q1<{ totp_enabled: number }>("SELECT totp_enabled FROM users WHERE id = ?", viewer.id), getSetting("site")]);
+  const [row, site] = await Promise.all([q1<{ totp_enabled: number }>("SELECT totp_enabled FROM employees WHERE id = ?", viewer.id), getSetting("site")]);
   return { viewer, totpEnabled: row?.totp_enabled === 1, totpRequired: site.staffTotpRequired, mustSetUpTotp: await needsTotpSetup(viewer) };
 }
 
@@ -661,11 +666,8 @@ export async function getAdminGames() {
     }
     return by;
   };
-  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
   return {
     ready: products !== null,
-    api: { ready: ambReady(), host: ambHost(), callbacks: !!ambSignatureKey(), ipLimited: ambCallbackIps().length > 0, unsigned: ambAllowUnsigned() },
-    callbackUrl: `${site || "https://<your-domain>"}/api/amb`,
     lastSync: products?.reduce<number | null>((m, p) => (p.synced_at && (!m || p.synced_at > m) ? p.synced_at : m), null) ?? null,
     products: (products ?? []).map((p) => ({
       id: p.product_id,

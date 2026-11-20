@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { run } from "@/server/db";
+import { q1, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
-import { createSession, userFromToken } from "./auth";
 import { addBlock, blockMember, isBlocked, memberIdentity, removeBlock } from "./blocklist";
 
 const now = Date.UTC(2026, 10, 9, 5, 0);
@@ -27,10 +26,10 @@ describe.skipIf(!hasTestDb)("member blocklist on MariaDB", () => {
 
   test("blocking an account signs its member out at once and keeps them blocked until lifted", async () => {
     const id = await member("0811111111", "1234567890", "สมชาย ใจดี");
-    const { token } = await createSession(id, "member", client, now);
+    await run("INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)", "t".repeat(64), id, now, now + 86_400_000, now, client.ip, client.userAgent);
     const r = await addBlock({ kind: "bank", bankCode: null, value: "123-456-7890" }, "โกงโปรโมชั่น", staff, now);
     expect(r).toMatchObject({ ok: true, members: 1 });
-    expect(await userFromToken(token, now + 1000)).toBeNull();
+    expect(await q1("SELECT 1 FROM sessions WHERE user_id = ?", id)).toBeUndefined();
     expect(await isBlocked((await memberIdentity(id))!)).toBe(true);
     if (!r.ok) throw new Error("unreachable");
     expect(await removeBlock(r.id, "ตรวจแล้วไม่ใช่", staff, now)).toEqual({ ok: true });

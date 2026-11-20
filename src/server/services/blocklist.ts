@@ -2,7 +2,7 @@ import "server-only";
 import { blockKey, matchesBlock, normalizeAccount, normalizeName, normalizePhone, type BlockInput, type BlockKind, type Identity } from "@/domain/blocklist";
 import { q, q1, run, tolerateMissingTable, tx } from "@/server/db";
 import { audit } from "./audit";
-import { revokeAllSessions } from "./auth";
+import { revokeAllMemberSessions } from "./member-sessions";
 
 /**
  * The member blocklist (rules in src/domain/blocklist.ts). Whoever matches an active entry cannot
@@ -26,7 +26,7 @@ export interface BlockRow {
 
 const SELECT = `SELECT b.id, b.kind, b.bank_code, b.value, b.display, b.reason, b.created_at, b.removed_at, b.remove_reason,
   COALESCE(c.username, c.name) AS creator, COALESCE(r.username, r.name) AS remover
-  FROM blocklist b LEFT JOIN users c ON c.id = b.created_by LEFT JOIN users r ON r.id = b.removed_by`;
+  FROM blocklist b LEFT JOIN employees c ON c.id = b.created_by LEFT JOIN employees r ON r.id = b.removed_by`;
 
 /** The lookups for one or more identities: every phone, account, and name they carry, normalized. */
 function keysOf(people: Identity[]) {
@@ -143,7 +143,7 @@ export async function addBlock(
     });
     if (id === null) return { ok: false, error: "exists" };
     const members = await membersMatching(entry);
-    for (const m of members) await revokeAllSessions(m, "revoked", now);
+    for (const m of members) await revokeAllMemberSessions(m, "revoked", now);
     await audit(actor.id, "block.add", `block:${id}`, { kind: entry.kind, bank: entry.bankCode, value: key.display, reason: why, members }, now, actor.ip);
     return { ok: true, id, members: members.length };
   } catch (error) {

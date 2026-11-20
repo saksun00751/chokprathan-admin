@@ -4,7 +4,7 @@ import { BANKS } from "@/domain/banks";
 import { closeBlockers, type CloseBlocker } from "@/domain/members";
 import { q1, run, tx } from "@/server/db";
 import { audit, changes } from "./audit";
-import { revokeAllSessions } from "./auth";
+import { revokeAllMemberSessions } from "./member-sessions";
 
 /** Staff edits of a member's identity and payout details, and closing/reopening accounts. Every change is audited with before/after. */
 
@@ -97,7 +97,7 @@ export async function updateMember(
         userId,
       );
       // The phone number is the sign-in name: a changed one signs the member out everywhere.
-      if (next.phone !== row.phone) await revokeAllSessions(userId);
+      if (next.phone !== row.phone) await revokeAllMemberSessions(userId);
       await audit(actor.id, "member.update", `user:${userId}`, { ...diff, reason }, now, actor.ip);
       return { ok: true as const };
     });
@@ -139,7 +139,7 @@ export async function closeMember(userId: number, reason: string, actor: Actor, 
     });
     if (blockers.length) return { ok: false, blockers };
     await run("UPDATE users SET status = 'closed', closed_at = ?, closed_by = ?, close_reason = ? WHERE id = ?", now, actor.id, reason, userId);
-    await revokeAllSessions(userId);
+    await revokeAllMemberSessions(userId);
     await audit(actor.id, "member.close", `user:${userId}`, { before: { status: u.status }, after: { status: "closed" }, reason }, now, actor.ip);
     return { ok: true };
   });

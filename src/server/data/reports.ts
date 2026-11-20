@@ -8,7 +8,7 @@ import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
 import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx } from "@/server/stats/derive";
 import { rangeStats, roundStats, type RangeStats } from "@/server/stats/store";
-import { can, type SessionUser } from "@/server/services/auth";
+import { can, type Employee } from "@/server/services/employee-auth";
 import { listLottos } from "@/server/services/lottos";
 import type { Locale } from "@/i18n/config";
 import type { Dict } from "@/i18n/dictionaries";
@@ -209,7 +209,7 @@ function byBetType(s: RangeStats, R: ReportsDict): ReportTable {
   };
 }
 
-async function players(s: RangeStats, viewer: SessionUser, R: ReportsDict): Promise<ReportTable> {
+async function players(s: RangeStats, viewer: Employee, R: ReportsDict): Promise<ReportTable> {
   const c = R.players.cols;
   const top = await s.users({ bettorsOnly: true, sortBy: "stake", limit: 200 });
   const people = await usersById(top.map((x) => x.u));
@@ -262,15 +262,15 @@ function registrations(r: DateRange, s: RangeStats, R: ReportsDict): ReportTable
   };
 }
 
-async function finance(r: DateRange, viewer: SessionUser, R: ReportsDict): Promise<ReportTable> {
+async function finance(r: DateRange, viewer: Employee, R: ReportsDict): Promise<ReportTable> {
   const c = R.finance.cols;
   const rows = await q<{ kind: string; id: number; created_at: number; reviewed_at: number | null; status: string; amount: number; bonus: number; name: string; phone: string | null; reviewer: string | null; note: string | null }>(
     `(SELECT 'deposit' AS kind, d.id, d.created_at, d.reviewed_at, d.status, d.amount, d.bonus, u.name, u.phone, s.name AS reviewer, d.note
-      FROM deposits d JOIN users u ON u.id = d.user_id LEFT JOIN users s ON s.id = d.reviewed_by
+      FROM deposits d JOIN users u ON u.id = d.user_id LEFT JOIN employees s ON s.id = d.reviewed_by
       WHERE d.created_at >= ? AND d.created_at < ? AND d.status IN ('pending','approved','rejected'))
      UNION ALL
      (SELECT 'withdraw' AS kind, w.id, w.created_at, w.reviewed_at, w.status, w.amount, 0 AS bonus, u.name, u.phone, s.name AS reviewer, w.note
-      FROM withdrawals w JOIN users u ON u.id = w.user_id LEFT JOIN users s ON s.id = w.reviewed_by
+      FROM withdrawals w JOIN users u ON u.id = w.user_id LEFT JOIN employees s ON s.id = w.reviewed_by
       WHERE w.created_at >= ? AND w.created_at < ?)
      ORDER BY created_at DESC LIMIT ${MAX_ROWS + 1}`,
     r.startMs,
@@ -378,11 +378,11 @@ async function rewards(r: DateRange, s: RangeStats, R: ReportsDict): Promise<Rep
   };
 }
 
-async function adjustments(r: DateRange, viewer: SessionUser, R: ReportsDict): Promise<ReportTable> {
+async function adjustments(r: DateRange, viewer: Employee, R: ReportsDict): Promise<ReportTable> {
   const c = R.adjustments.cols;
   const rows = await q<{ created_at: number; amount: number; balance_after: number; note: string | null; name: string; phone: string | null; staff: string | null }>(
     `SELECT t.created_at, t.amount, t.balance_after, t.note, u.name, u.phone, s.name AS staff
-     FROM transactions t JOIN users u ON u.id = t.user_id LEFT JOIN users s ON s.id = t.actor_id
+     FROM transactions t JOIN users u ON u.id = t.user_id LEFT JOIN employees s ON s.id = t.actor_id
      WHERE t.type = 'adjust' AND t.created_at >= ? AND t.created_at < ? ORDER BY t.created_at DESC LIMIT ${MAX_ROWS + 1}`,
     r.startMs,
     r.endMs,
@@ -425,12 +425,12 @@ const ACTION_GROUPS = [
 
 async function staff(r: DateRange, R: ReportsDict): Promise<ReportTable> {
   const c = R.staff.cols;
-  const staffUsers = await q<{ id: number; name: string }>("SELECT id, name FROM users WHERE role = 'staff'");
+  const staffUsers = await q<{ id: number; name: string }>("SELECT id, name FROM employees");
   const names = new Map(staffUsers.map((s) => [s.id, s.name]));
   const [actions, logins] = await Promise.all([
     q<{ actor_id: number; name: string; action: string; n: number }>(
-      `SELECT a.actor_id, u.name, a.action, COUNT(*) AS n FROM audit_log a JOIN users u ON u.id = a.actor_id
-       WHERE a.created_at >= ? AND a.created_at < ? AND u.role = 'staff' GROUP BY a.actor_id, u.name, a.action`,
+      `SELECT a.actor_id, u.name, a.action, COUNT(*) AS n FROM audit_log a JOIN employees u ON u.id = a.actor_id
+       WHERE a.created_at >= ? AND a.created_at < ? GROUP BY a.actor_id, u.name, a.action`,
       r.startMs,
       r.endMs,
     ),
