@@ -17,7 +17,7 @@ Copy `.env.example` to `.env.local` (development) or `.env.production.local` (de
 | `SCHEDULER` | `off` keeps this instance from running background work (while the old app still owns it). |
 | `MONGODB_URL`, `MONGODB_DB` | Optional; same MongoDB as the member site (media, stats, audit copy). |
 | `NEXT_PUBLIC_SITE_URL` | Public URL of this app. |
-| `TRUST_PROXY` | `1` behind the bundled nginx (client IP from `X-Real-IP`). |
+| `TRUST_PROXY` | `1` behind a reverse proxy that sets `X-Real-IP` (the client IP is taken from it). |
 | `ALLOWED_ORIGINS` | Optional, comma-separated extra origins for Server Actions (only when a proxy rewrites the host name). |
 | `SETTLE_CHUNK` | Optional, winning bills paid per settlement batch (default 500). |
 | `SMS_PROVIDER`, `THAIBULKSMS_API_KEY`, `THAIBULKSMS_API_SECRET` | Optional, read only so the settings page can say whether the member app's SMS is configured; admin never sends SMS. Usually left unset. |
@@ -52,14 +52,13 @@ The cut-over from the old back office (order, checks, rollback) is in
 [`docs/runbook-cutover.md`](docs/runbook-cutover.md). Follow it for the first deploy.
 
 **Ports.** The admin app listens on **3100** (`ecosystem.config.cjs`); the member app uses
-3000, so both can run on one host. nginx (`deploy/nginx.conf`, `server_name admin.example.com`) proxies
-443 to it; its zone and upstream names are prefixed `admin_` so it can be added to the member's nginx.
+3000, so both can run on one host. A reverse proxy in front (for example nginx) terminates HTTPS and proxies
+to `127.0.0.1:3100`; it must overwrite `X-Real-IP` with the client address (see `TRUST_PROXY`).
 
 **Environment.** `cp .env.example .env.production.local` and set at least `DATABASE_URL` (the `chok_admin`
 user), `NEXT_PUBLIC_SITE_URL`, `TRUST_PROXY=1` and `SCHEDULER`. Never add AMB secrets.
 
-**PM2**, behind nginx (for example the member app's nginx, with the server blocks of `deploy/nginx.conf`
-and upstream `127.0.0.1:3100`):
+**PM2**, behind your reverse proxy (upstream `127.0.0.1:3100`):
 
 ```sh
 npm ci && npm run build

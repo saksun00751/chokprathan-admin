@@ -5,7 +5,7 @@ import type { ClientInfo } from "@/server/services/employee-auth";
 const IP = /^[0-9a-fA-F:.]{3,45}$/;
 
 /**
- * The caller's IP and user agent. Behind the bundled nginx config (TRUST_PROXY=1) the proxy sets
+ * The caller's IP and user agent. Behind a reverse proxy (TRUST_PROXY=1) the proxy sets
  * X-Real-IP to the socket address; otherwise the last X-Forwarded-For hop is used, which Next.js
  * fills from the socket when the client sends none.
  */
