@@ -1,0 +1,431 @@
+@import "tailwindcss";
+
+/* Design tokens: see DESIGN.md. OKLCH only. */
+@theme {
+  --color-canvas: oklch(0.975 0.004 285);
+  --color-surface: oklch(1 0 0);
+  --color-panel: oklch(0.955 0.008 285);
+  --color-line: oklch(0.915 0.01 285);
+  --color-line-strong: oklch(0.84 0.014 285);
+
+  --color-ink: oklch(0.22 0.03 285);
+  --color-ink-2: oklch(0.44 0.025 285);
+  --color-ink-3: oklch(0.53 0.02 285);
+
+  --color-brand: oklch(0.46 0.19 282);
+  --color-brand-hover: oklch(0.41 0.18 282);
+  --color-brand-press: oklch(0.37 0.16 282);
+  --color-brand-soft: oklch(0.955 0.022 285);
+  --color-brand-soft-ink: oklch(0.42 0.17 282);
+  --color-brand-deep: oklch(0.3 0.12 284);
+  --color-on-deep-2: oklch(0.82 0.05 285);
+
+  --color-gold: oklch(0.84 0.13 84);
+  --color-gold-ink: oklch(0.38 0.08 70);
+  --color-gold-text: oklch(0.5 0.1 72);
+  --color-gold-soft: oklch(0.96 0.045 88);
+
+  --color-success: oklch(0.5 0.12 155);
+  --color-success-soft: oklch(0.96 0.03 155);
+  --color-warning: oklch(0.52 0.12 62);
+  --color-warning-soft: oklch(0.965 0.03 80);
+  --color-danger: oklch(0.52 0.19 27);
+  --color-danger-soft: oklch(0.965 0.018 25);
+
+  /* Chart palette: the validated dataviz reference instance (hex by design: documented slots only).
+     Slots 1-4 adjacent CVD dE >= 9.1 on white; 3 and 4 sit under 3:1, so they always ship with labels. */
+  --color-viz-1: #2a78d6;
+  --color-viz-2: #eb6834;
+  --color-viz-3: #1baf7a;
+  --color-viz-4: #eda100;
+  --color-viz-pos: #2a78d6;
+  --color-viz-neg: #e34948;
+  --color-viz-deemph: #b8b6ae;
+  --color-viz-grid: #e1e0d9;
+  --color-viz-axis: #c3c2b7;
+
+  /* Latin, digits, and Thai come from Plex; Lao, Burmese, and Khmer glyphs fall through to the
+     locale's Noto font (--font-script, set on <html> only for that language). */
+  --font-sans: var(--font-plex), var(--font-script, "IBM Plex Sans Thai"), system-ui, sans-serif;
+
+  /* Fixed rem scale, ratio ~1.2 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.55;
+  --text-base: 1rem;
+  --text-base--line-height: 1.65;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.5;
+  --text-xl: 1.4375rem;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.3;
+  --text-3xl: 2.125rem;
+  --text-3xl--line-height: 1.2;
+
+  --radius-control: 10px;
+  --radius-card: 14px;
+
+  --shadow-card: 0 1px 2px oklch(0.22 0.03 285 / 0.06);
+  --shadow-float: 0 12px 32px oklch(0.22 0.03 285 / 0.16);
+  --shadow-bar: 0 -1px 0 oklch(0.915 0.01 285), 0 -8px 24px oklch(0.22 0.03 285 / 0.06);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+
+  --animate-sheet-in: sheet-in 220ms var(--ease-out-quart);
+  --animate-fade-in: fade-in 180ms var(--ease-out-quart);
+  --animate-pop: pop 200ms var(--ease-out-quart);
+  --animate-toast-in: toast-in 220ms var(--ease-out-quart);
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-gold-sweep: gold-sweep 1.1s var(--ease-out-quart) 1;
+  --animate-urgent: urgent 1.2s ease-in-out infinite;
+  --animate-float: float 4.8s ease-in-out infinite;
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(24px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0.96);
+      opacity: 0.4;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      transform: translateY(-8px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes gold-sweep {
+    from {
+      background-position: -150% 0;
+    }
+    to {
+      background-position: 250% 0;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -6%;
+    }
+  }
+  @keyframes urgent {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  html {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    min-height: 100dvh;
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  ::selection {
+    background: var(--color-brand-soft);
+    color: var(--color-brand-soft-ink);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-ink-3);
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/*
+ * Colour themes, chosen in the back office (/admin/theme) and applied as <html data-theme>.
+ * "royal" (the original violet) is the @theme default above. Every theme keeps the same
+ * contrast floors: white on brand >= 6.4:1, brand links on canvas >= 6:1, body ink >= 16:1,
+ * tertiary ink >= 4.6:1 on panel. Gold (wins) and the status colours never change.
+ * Decorative art and slides follow --art-h, the theme's hue.
+ */
+@layer base {
+  :root,
+  [data-theme-preview="royal"] {
+    --art-h: 284;
+  }
+  /* A royal preview card inside another theme needs the defaults restated. */
+  [data-theme-preview="royal"] {
+    --color-canvas: oklch(0.975 0.004 285);
+    --color-panel: oklch(0.955 0.008 285);
+    --color-line: oklch(0.915 0.01 285);
+    --color-line-strong: oklch(0.84 0.014 285);
+    --color-ink: oklch(0.22 0.03 285);
+    --color-ink-2: oklch(0.44 0.025 285);
+    --color-ink-3: oklch(0.53 0.02 285);
+    --color-brand: oklch(0.46 0.19 282);
+    --color-brand-hover: oklch(0.41 0.18 282);
+    --color-brand-press: oklch(0.37 0.16 282);
+    --color-brand-soft: oklch(0.955 0.022 285);
+    --color-brand-soft-ink: oklch(0.42 0.17 282);
+    --color-brand-deep: oklch(0.3 0.12 284);
+    --color-on-deep-2: oklch(0.82 0.05 285);
+  }
+  :root,
+  [data-theme-preview] {
+    --art-brand-a: oklch(0.64 0.2 calc(var(--art-h) + 8));
+    --art-brand-b: oklch(0.38 0.17 var(--art-h));
+    --art-brand-light-a: oklch(0.78 0.13 calc(var(--art-h) + 8));
+    --art-brand-light-b: oklch(0.55 0.2 calc(var(--art-h) + 2));
+    --art-ball-a: oklch(0.82 0.11 calc(var(--art-h) + 6));
+    --art-ball-b: oklch(0.56 0.21 calc(var(--art-h) + 2));
+    --art-ball-c: oklch(0.32 0.15 var(--art-h));
+    --slide-glow: oklch(0.56 0.21 calc(var(--art-h) + 6) / 0.95);
+    --slide-from: oklch(0.34 0.14 var(--art-h));
+    --slide-to: oklch(0.2 0.08 var(--art-h));
+    --slide-alt-from: oklch(0.32 0.13 var(--art-h));
+    --slide-alt-to: oklch(0.18 0.07 var(--art-h));
+    --slide-shade: oklch(0.18 0.07 var(--art-h));
+  }
+  :root[data-theme="emerald"],
+  [data-theme-preview="emerald"] {
+    --art-h: 162;
+    --color-canvas: oklch(0.975 0.004 165);
+    --color-panel: oklch(0.955 0.008 165);
+    --color-line: oklch(0.915 0.01 165);
+    --color-line-strong: oklch(0.84 0.014 165);
+    --color-ink: oklch(0.22 0.03 165);
+    --color-ink-2: oklch(0.44 0.025 165);
+    --color-ink-3: oklch(0.53 0.02 165);
+    --color-brand: oklch(0.47 0.105 162);
+    --color-brand-hover: oklch(0.42 0.09 162);
+    --color-brand-press: oklch(0.38 0.075 162);
+    --color-brand-soft: oklch(0.955 0.028 165);
+    --color-brand-soft-ink: oklch(0.43 0.085 162);
+    --color-brand-deep: oklch(0.3 0.062 165);
+    --color-on-deep-2: oklch(0.82 0.05 165);
+  }
+  :root[data-theme="sapphire"],
+  [data-theme-preview="sapphire"] {
+    --art-h: 256;
+    --color-canvas: oklch(0.975 0.004 255);
+    --color-panel: oklch(0.955 0.008 255);
+    --color-line: oklch(0.915 0.01 255);
+    --color-line-strong: oklch(0.84 0.014 255);
+    --color-ink: oklch(0.22 0.03 255);
+    --color-ink-2: oklch(0.44 0.025 255);
+    --color-ink-3: oklch(0.53 0.02 255);
+    --color-brand: oklch(0.48 0.16 257);
+    --color-brand-hover: oklch(0.43 0.15 257);
+    --color-brand-press: oklch(0.39 0.13 257);
+    --color-brand-soft: oklch(0.955 0.022 255);
+    --color-brand-soft-ink: oklch(0.44 0.14 257);
+    --color-brand-deep: oklch(0.3 0.11 258);
+    --color-on-deep-2: oklch(0.82 0.05 255);
+  }
+  :root[data-theme="ruby"],
+  [data-theme-preview="ruby"] {
+    --art-h: 18;
+    --color-canvas: oklch(0.975 0.003 15);
+    --color-panel: oklch(0.955 0.006 15);
+    --color-line: oklch(0.915 0.008 15);
+    --color-line-strong: oklch(0.84 0.011 15);
+    --color-ink: oklch(0.22 0.024 15);
+    --color-ink-2: oklch(0.44 0.02 15);
+    --color-ink-3: oklch(0.53 0.016 15);
+    --color-brand: oklch(0.49 0.18 18);
+    --color-brand-hover: oklch(0.44 0.17 18);
+    --color-brand-press: oklch(0.4 0.15 18);
+    --color-brand-soft: oklch(0.955 0.022 15);
+    --color-brand-soft-ink: oklch(0.45 0.16 18);
+    --color-brand-deep: oklch(0.3 0.11 16);
+    --color-on-deep-2: oklch(0.82 0.05 15);
+  }
+  :root[data-theme="sunset"],
+  [data-theme-preview="sunset"] {
+    --art-h: 38;
+    --color-canvas: oklch(0.975 0.003 45);
+    --color-panel: oklch(0.955 0.006 45);
+    --color-line: oklch(0.915 0.007 45);
+    --color-line-strong: oklch(0.84 0.01 45);
+    --color-ink: oklch(0.22 0.021 45);
+    --color-ink-2: oklch(0.44 0.017 45);
+    --color-ink-3: oklch(0.53 0.014 45);
+    --color-brand: oklch(0.5 0.155 38);
+    --color-brand-hover: oklch(0.45 0.145 38);
+    --color-brand-press: oklch(0.41 0.125 38);
+    --color-brand-soft: oklch(0.955 0.024 45);
+    --color-brand-soft-ink: oklch(0.46 0.135 38);
+    --color-brand-deep: oklch(0.31 0.09 36);
+    --color-on-deep-2: oklch(0.82 0.05 45);
+  }
+}
+
+/* Burmese and Khmer stack vowels and subscripts far above and below the line: give them room. */
+@layer base {
+  html:lang(my),
+  html:lang(km) {
+    --text-xs--line-height: 1.75;
+    --text-sm--line-height: 1.8;
+    --text-base--line-height: 1.85;
+    --text-lg--line-height: 1.75;
+    --text-xl--line-height: 1.6;
+    --text-2xl--line-height: 1.55;
+    --text-3xl--line-height: 1.45;
+  }
+  html:lang(lo) {
+    --text-xs--line-height: 1.6;
+    --text-sm--line-height: 1.65;
+  }
+}
+
+@layer components {
+  /* Bottom sheet on phones, centered dialog from 640px. */
+  .sheet {
+    position: fixed;
+    inset: auto 0 0 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 780px);
+    padding: 0;
+    border: 0;
+    border-radius: 20px 20px 0 0;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-float);
+    overflow: hidden;
+  }
+  .sheet[open] {
+    animation: var(--animate-sheet-in);
+  }
+  .sheet::backdrop {
+    background: oklch(0.22 0.03 285 / 0.45);
+    animation: var(--animate-fade-in);
+  }
+  @media (min-width: 640px) {
+    .sheet {
+      inset: 0;
+      margin: auto;
+      width: calc(100% - 2rem);
+      height: fit-content;
+      border-radius: var(--radius-card);
+    }
+  }
+
+  /* Toast layer lives in the top layer (popover) so it shows above open sheets. */
+  .toast-layer {
+    position: fixed;
+    inset: 12px 0 auto 0;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 444px;
+    padding: 0 12px;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-panel) 0%,
+    oklch(0.975 0.006 285) 50%,
+    var(--color-panel) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+  border-radius: 8px;
+}
+
+@utility ticket-edge {
+  /* perforated divider: dashed line + notches drawn by ::before/::after in TicketDivider */
+  background-image: linear-gradient(90deg, var(--color-line-strong) 50%, transparent 50%);
+  background-size: 10px 1px;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
