@@ -40,7 +40,8 @@ password=MIGRATE_PASS
 1. [ ] **(a) member จะ migrate schema ตัวเองไม่ได้อีกเมื่อรันเป็น `chok_member`.** `chok_member` มีแค่ DML (ดูหมายเหตุใน
    `scripts/grants.sql` ส่วน chok_member) ไม่มี CREATE/ALTER/INDEX/DROP/REFERENCES ถ้าเปิด auto-migrate ไว้
    `migrate()` ตอนเริ่มจะล้มที่ `CREATE TABLE IF NOT EXISTS schema_migrations` และ scheduler ฝั่ง member ไม่เริ่ม ดังนั้น:
-   - member ต้องรันด้วย `DB_AUTO_MIGRATE=false` ใน `.env.production.local` ของ member **ตั้งแต่วินาทีที่สลับเป็น `chok_member`**
+   - member ต้องรันด้วย `DB_AUTO_MIGRATE=false` ใน `.env.production.local` ของ member **ก่อนเริ่ม build/deploy ใด ๆ
+     ของ cut-over branch** (ไม่ใช่รอถึงตอนสลับเป็น `chok_member`; ดูข้อ 10)
    - migration ของ member (รวม migration 9 ตอน contract) รันแยกด้วยผู้ใช้สิทธิ์สูง `MIGRATE_URL` เสมอ:
      ```bash
      cd "$MEMBER_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate
@@ -64,8 +65,13 @@ password=MIGRATE_PASS
 6. [ ] **(f) ประวัติการเข้าสู่ระบบของพนักงานก่อน Switch อยู่ที่ store ของ member** (`auth_log` ใน MariaDB / Mongo `auth_log`)
    เป็น archive อ่านอย่างเดียว หน้า "ความปลอดภัย" ของ admin แสดงเฉพาะ `employee_auth_log` ตั้งแต่ Switch เป็นต้นไป
    แจ้งเจ้าของระบบและผู้ตรวจสอบให้รับทราบก่อน
-7. [ ] **member build ของ plan Task 14** (ไม่มี `/admin`, `/console`, ไม่มีงาน round/settlement/deposit/audit/stats) ผ่าน
-   `npm test && npm run typecheck && npm run lint && npm run build` และพร้อม deploy แต่ **ยังไม่ deploy** จนถึงขั้น 4
+7. [ ] **member build ของ plan Task 14** (ไม่มี `/admin`, `/console`, ไม่มีงาน round/settlement/deposit/audit/stats) คือ
+   tag **`admin-split-switch`** ของ member repo (**ไม่ใช่** ปลาย branch `admin-split/cutover` ซึ่งมี migration 9 อยู่ด้วย)
+   ผ่าน `npm test && npm run typecheck && npm run lint && npm run build` และพร้อม deploy แต่ **ยังไม่ deploy** จนถึงขั้น 4
+   ```bash
+   cd "$MEMBER_DIR" && git fetch --tags && git rev-parse admin-split-switch admin-split-contract
+   ```
+   ต้องได้ commit สองค่า (tag `admin-split-contract` ใช้ในขั้น 6 เท่านั้น)
 8. [ ] **วิธีปิดปรับปรุง (maintenance).** member app ไม่มีโหมดปิดปรับปรุงในตัว ใช้ nginx ของ member ตอบ 503 ยกเว้น IP ผู้ดูแล
    เตรียมไว้ล่วงหน้า (เพิ่มใน `server { listen 443 ... }` ของ member ก่อน `location`) แล้ว `nginx -s reload` หนึ่งครั้ง:
    ```nginx
@@ -78,8 +84,14 @@ password=MIGRATE_PASS
 9. [ ] **(แนะนำ) id ของพนักงานใหม่ไม่ชนกับ id สมาชิก.** `import-staff` คง id เดิมของ staff ไว้ หลังจากนั้น `employees`
    AUTO_INCREMENT จะต่อจาก id staff สูงสุด ซึ่งมักซ้ำกับ id ของสมาชิกใน `users` ถ้า rollback หลังมีพนักงานใหม่ แอปเดิมจะอ่าน
    `actor_id` ของพนักงานใหม่เป็นสมาชิกคนนั้น ทางแก้คือขั้น 2 ข้อ 5 (ตั้ง AUTO_INCREMENT สูง) ตัดสินใจก่อนว่าจะทำหรือไม่
+10. [ ] **`DB_AUTO_MIGRATE=false` ต้องอยู่ใน `.env.production.local` ของ member "ก่อน" เริ่ม build ใด ๆ ของ cut-over branch**
+    บนเครื่อง member (ทั้ง tag `admin-split-switch` และ `admin-split-contract`) เพราะปลาย branch มี migration 9 ซึ่ง
+    **ลบแถว staff ออกจาก `users`** ถ้า build นั้นเริ่มด้วย auto-migrate และผู้ใช้สิทธิ์สูง migration 9 จะรันเองทันที
+    และ **rollback (ขั้น 5) เป็นไปไม่ได้อีก** (เหลือแค่กู้จาก backup) ผู้ใช้สิทธิ์สูงของ `MIGRATE_URL` เก็บแยกไว้ ใช้เฉพาะคำสั่ง
+    `npm run db -- migrate` ที่สั่งเองเท่านั้น ห้ามอยู่ใน env ของ member app ที่รันด้วย auto-migrate
 
-**Verify:** ทุกช่องด้านบนติ๊กแล้ว, `scripts/check-parity.sh "$MEMBER_DIR"` พิมพ์ `parity ok`, และ `node scripts/check-grants.mjs --member "$MEMBER_DIR"` พิมพ์ `grants ok`
+**Verify:** ทุกช่องด้านบนติ๊กแล้ว, `scripts/check-parity.sh "$MEMBER_DIR"` พิมพ์ `parity ok`, และ `node scripts/check-grants.mjs --member "$MEMBER_DIR"` พิมพ์ `grants ok`;
+`git -C "$MEMBER_DIR" rev-parse admin-split-switch` ได้ commit (tag มีอยู่ในเครื่อง member)
 
 ---
 
@@ -120,6 +132,8 @@ password=MIGRATE_PASS
    ```bash
    mariadb "$DB" -e "SELECT COUNT(*) AS staff FROM users WHERE role='staff'; SELECT COUNT(*) AS roles FROM staff_roles;"
    ```
+4. (แนะนำ) รันคำสั่งตรวจ FK ของขั้น 6 ข้อ 2 (แถวที่อ้าง staff และจะขวาง `DELETE` ของ migration 9) ได้ตั้งแต่ตอนนี้
+   คำสั่งนั้นอ่านอย่างเดียว ถ้ามีค่าใดไม่เป็น `0` จะได้มีเวลาสืบสาเหตุก่อนถึง contract
 
 **Verify:** ไฟล์ backup สองไฟล์ขนาดไม่เป็นศูนย์, คำสั่งข้อ 2 ได้ `Empty set` (0 แถว), จดจำนวน staff/roles แล้ว
 
@@ -190,8 +204,8 @@ password=MIGRATE_PASS
 
 **Verify:** `curl -fsS https://admin.example.com/api/health` ได้ `{"ok":true,"db":"up",...}`; `SHOW GRANTS` ตรงกับ `grants.sql`;
 isolation test ผ่านบนเซิร์ฟเวอร์ทิ้งได้; `SELECT IS_USED_LOCK('chokprathan-admin:scheduler')` ได้ `NULL` (admin ยังไม่รัน scheduler)
-(หมายเหตุ: ค่า `scheduler` ใน `/api/health` อ่านแถว `system_status.name='scheduler'` ซึ่งทั้งสองแอปเขียนแถวเดียวกัน
-ระหว่างนี้จึงสะท้อน scheduler ของ member)
+(หมายเหตุ: ค่า `scheduler` ใน `/api/health` ของ admin อ่านแถว `system_status.name='scheduler'` ระหว่างนี้แถวนั้นเขียนโดย
+member build เดิม (ก่อน Switch) จึงสะท้อน scheduler ของ member; member build ของ cut-over เขียนแถวของตัวเอง `member_scheduler`)
 
 ---
 
@@ -222,29 +236,40 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
    touch /etc/nginx/maintenance.on
    curl -s -o /dev/null -w '%{http_code}\n' https://example.com/   # จากเครื่องที่ไม่ใช่ IP ผู้ดูแล: 503
    ```
-2. Deploy member build ของ Task 14 (ไม่มีงาน round/settlement/deposit/audit/stats, ไม่มี `/admin`, `/console`)
-   ยังใช้ `DATABASE_URL` เดิม:
+2. ปิด auto-migrate ของ member **ก่อน** deploy build ใหม่ (ขั้น 0 ข้อ 10) เก็บ env เดิมไว้สำหรับ rollback ก่อนแก้อะไร
+   ยังใช้ `DATABASE_URL` เดิม (ผู้ใช้สิทธิ์สูงของ `MIGRATE_URL` เก็บแยกไว้ ห้ามลบ ใช้ตอน rollback และ contract):
    ```bash
-   cd "$MEMBER_DIR" && git pull && npm ci && npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 reload chokprathan
+   cd "$MEMBER_DIR" && cp .env.production.local ".env.production.local.pre-switch"
+   # เพิ่ม/แก้ DB_AUTO_MIGRATE=false ด้วย editor แล้วตรวจ:
+   grep -E '^DB_AUTO_MIGRATE=' .env.production.local
    ```
-   ตั้งแต่ข้อนี้ถึงข้อ 4 ไม่มี scheduler ใดรันงานรอบ/settlement (ตั้งใจ ระหว่างปิดปรับปรุง)
-3. คัดลอกข้อมูลพนักงานล่าสุดจากแอปเดิมทับ admin (ครั้งเดียว):
+   ต้องได้ `DB_AUTO_MIGRATE=false` ห้ามทำข้อ 3 ถ้ายังไม่ได้
+3. Deploy member build ของ Task 14 = tag `admin-split-switch` (ไม่มีงาน round/settlement/deposit/audit/stats, ไม่มี `/admin`,
+   `/console`, **ไม่มี migration 9**) ห้ามใช้ `git pull` / ปลาย branch:
+   ```bash
+   cd "$MEMBER_DIR" && git fetch --tags && git checkout admin-split-switch && git log --oneline -1
+   npm ci && npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 reload chokprathan
+   mariadb "$DB" -e "SELECT MAX(version) AS member_version FROM schema_migrations;"
+   ```
+   `member_version` ต้องเป็น `8` ตั้งแต่ข้อนี้ถึงข้อ 5 ไม่มี scheduler ใดรันงานรอบ/settlement (ตั้งใจ ระหว่างปิดปรับปรุง)
+4. คัดลอกข้อมูลพนักงานล่าสุดจากแอปเดิมทับ admin (ครั้งเดียว):
    ```bash
    cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff --refresh
    ```
-4. เปิด scheduler ฝั่ง admin และรีสตาร์ต (2 replica: ตัวหนึ่งถือ lock อีกตัวสำรอง):
+5. เปิด scheduler ฝั่ง admin และรีสตาร์ต (2 replica: ตัวหนึ่งถือ lock อีกตัวสำรอง):
    ```bash
    cd "$ADMIN_DIR" && sed -i.bak 's/^SCHEDULER=.*/SCHEDULER=on/' .env.production.local && grep '^SCHEDULER=' .env.production.local
    cp .env.production.local .next/standalone/ && pm2 reload chokprathan-admin
    ```
-5. สลับ member เป็น `chok_member` และปิด auto-migrate (แก้ `.env.production.local` ของ member):
+6. สลับ member เป็น `chok_member` (แก้ `.env.production.local` ของ member; `DB_AUTO_MIGRATE=false` ตั้งไว้แล้วในข้อ 2):
    ```bash
-   cd "$MEMBER_DIR" && cp .env.production.local ".env.production.local.pre-switch"
-   # แก้ DATABASE_URL=<MEMBER_URL> และเพิ่ม/แก้ DB_AUTO_MIGRATE=false ด้วย editor แล้วตรวจ:
+   cd "$MEMBER_DIR"
+   # แก้ DATABASE_URL=<MEMBER_URL> ด้วย editor แล้วตรวจ:
    grep -E '^(DATABASE_URL|DB_AUTO_MIGRATE)=' .env.production.local | sed 's/:[^:@]*@/:***@/'
    cp .env.production.local .next/standalone/ && pm2 reload chokprathan
    ```
-6. ตรวจทุกข้อก่อนปิดโหมดปิดปรับปรุง (จาก IP ผู้ดูแล):
+   ต้องเห็น `chok_member` ใน `DATABASE_URL` และ `DB_AUTO_MIGRATE=false`
+7. ตรวจทุกข้อก่อนปิดโหมดปิดปรับปรุง (จาก IP ผู้ดูแล):
    - [ ] พนักงานเข้าสู่ระบบที่ `https://admin.example.com/login` ได้ (รวม 2 ขั้น)
    - [ ] สมาชิกเข้าสู่ระบบที่เว็บ member ได้ และ `https://example.com/admin` / `https://example.com/console` ได้ 404
    - [ ] แทงโพยเล็ก ๆ หนึ่งใบสำเร็จ และเห็นในหน้ารอบของ admin
@@ -252,11 +277,13 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
      ```bash
      mariadb "$DB" -e "SELECT * FROM employee_auth_log ORDER BY id DESC LIMIT 5;"
      ```
-   - [ ] scheduler ของ admin ถือ lock และ heartbeat มาจากเครื่อง admin:
+   - [ ] scheduler ของ admin ถือ lock และ heartbeat มาจากเครื่อง admin (หลัง Switch แถว `scheduler` เป็นของ admin เท่านั้น
+     member build ใหม่เขียนแถวของตัวเอง `member_scheduler` ซึ่ง `/api/health` ของ member อ่าน):
      ```bash
-     mariadb "$DB" -e "SELECT IS_USED_LOCK('chokprathan-admin:scheduler') AS admin_lock; SELECT name, \`value\`, updated_at FROM system_status WHERE name = 'scheduler';"
+     mariadb "$DB" -e "SELECT IS_USED_LOCK('chokprathan-admin:scheduler') AS admin_lock; SELECT name, \`value\`, updated_at FROM system_status WHERE name IN ('scheduler', 'member_scheduler');"
      ```
-     `admin_lock` ไม่เป็น `NULL`, `value.host` เป็น hostname ของ container/เครื่อง admin, `updated_at` ไม่เกิน ~20 วินาทีก่อน
+     `admin_lock` ไม่เป็น `NULL`; แถว `scheduler`: `value.host` เป็น hostname ของ container/เครื่อง admin, `updated_at` ไม่เกิน ~20 วินาทีก่อน;
+     แถว `member_scheduler` มี `updated_at` ใหม่ (scheduler ของ member ยังเดินงานของตัวเอง)
    - [ ] รอบปิดและจ่ายรางวัลได้ (ดู tick หนึ่งรอบ ~20 วินาที): เลือกรอบออกผลอัตโนมัติ (ยี่กี) ที่ใกล้ปิด
      ```bash
      mariadb "$DB" -e "SELECT r.id, l.name, FROM_UNIXTIME(r.closes_at/1000) AS closes, FROM_UNIXTIME(r.draw_at/1000) AS draw, r.status, r.settled_at FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status = 'scheduled' ORDER BY r.draw_at LIMIT 5;"
@@ -277,21 +304,27 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
      ต้องได้ `ERROR 1142 ... SELECT command denied`
    - [ ] log ของ member ไม่มีสิทธิ์ถูกปฏิเสธ: `pm2 logs chokprathan --lines 300 --nostream | grep -i denied`
      ต้องว่าง
-7. ปิดโหมดปิดปรับปรุง:
+8. ปิดโหมดปิดปรับปรุง:
    ```bash
    rm /etc/nginx/maintenance.on
    ```
 
-**Verify:** ทุกช่องในข้อ 6 ติ๊กแล้ว และหลังเปิดเว็บ 15 นาที `/api/health` ทั้งสองแอปยัง `ok` และ log ไม่มี `denied`
+**Verify:** ทุกช่องในข้อ 7 ติ๊กแล้ว, `SELECT MAX(version) FROM schema_migrations` ยังเป็น `8` และหลังเปิดเว็บ 15 นาที `/api/health` ทั้งสองแอปยัง `ok` และ log ไม่มี `denied`
 ถ้าข้อใดไม่ผ่านและแก้ไม่ได้ภายในเวลาที่ประกาศ: ทำขั้น 5 (rollback) ทันที
 
 ---
 
 ## 5. Rollback (ทำได้จนถึง contract)
 
-ข้อมูล staff ใน `users` / `staff_roles` ยังอยู่ แอปเดิมจึงกลับมาใช้ได้ ลำดับ: ปิด scheduler ของ admin ก่อน เพื่อไม่ให้มี scheduler สองตัว
+ข้อมูล staff ใน `users` / `staff_roles` ยังอยู่ (ตราบใดที่ migration 9 ยังไม่เคยรัน) แอปเดิมจึงกลับมาใช้ได้
+ลำดับ: ปิด scheduler ของ admin ก่อน เพื่อไม่ให้มี scheduler สองตัว
 
-1. เปิดโหมดปิดปรับปรุง: `touch /etc/nginx/maintenance.on`
+1. เปิดโหมดปิดปรับปรุง: `touch /etc/nginx/maintenance.on` แล้วตรวจว่าไม่มีอะไรรัน migration 9:
+   ```bash
+   mariadb "$DB" -e "SELECT MAX(version) AS member_version FROM schema_migrations; SELECT COUNT(*) AS staff FROM users WHERE role='staff';"
+   ```
+   `member_version` ต้องเป็น `8` และ `staff` เท่ากับที่จดไว้ในขั้น 1 ข้อ 3 ถ้าได้ `9`: migration 9 รันไปแล้ว rollback ตามขั้นนี้ไม่ได้
+   **หยุด** (ย้อนได้ทางเดียวคือกู้จาก backup `pre-split-*` / `pre-contract-*`)
 2. ปิด scheduler ฝั่ง admin:
    ```bash
    cd "$ADMIN_DIR" && sed -i.bak 's/^SCHEDULER=.*/SCHEDULER=off/' .env.production.local
@@ -301,10 +334,12 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
    ```bash
    cd "$MEMBER_DIR" && cp .env.production.local.pre-switch .env.production.local
    ```
-4. Deploy member build ก่อน Task 14 (commit ที่รันอยู่ก่อน Switch แทน `PREVIOUS_SHA`):
+4. Deploy member build ก่อน Task 14 อีกครั้ง (commit ที่รันอยู่ก่อน Switch แทน `PREVIOUS_SHA`; build นั้นมี migration ถึง 8 เท่านั้น):
    ```bash
    cd "$MEMBER_DIR" && git checkout PREVIOUS_SHA && npm ci && npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 reload chokprathan
+   mariadb "$DB" -e "SELECT MAX(version) AS member_version FROM schema_migrations;"
    ```
+   `member_version` ยังเป็น `8`
 5. ตรวจแล้วปิดโหมดปิดปรับปรุง: `rm /etc/nginx/maintenance.on`
 
 สิ่งที่ **ย้อนไม่ได้** (หรือหายเมื่อ rollback):
@@ -317,7 +352,7 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
 - หลัง contract (ขั้น 6) ย้อนได้ทางเดียวคือกู้จาก backup
 
 **Verify:** `SELECT IS_USED_LOCK('chokprathan:scheduler')` ไม่เป็น `NULL` และ `IS_USED_LOCK('chokprathan-admin:scheduler')` เป็น `NULL`;
-พนักงานเข้า `/console` ของแอปเดิมได้; `https://example.com/api/health` ได้ `ok`
+`SELECT MAX(version) FROM schema_migrations` เป็น `8`; พนักงานเข้า `/console` ของแอปเดิมได้; `https://example.com/api/health` ได้ `ok`
 
 ---
 
@@ -346,12 +381,37 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
    และคำสั่งที่สองได้ `Empty set` (ไม่มี staff ที่ขาดจาก `employees`) ถ้าไม่ผ่าน: รัน `npm run db -- import-staff` ก่อน
    (ยังใช้ได้เพราะ `staff_roles` ยังอยู่) แล้วตรวจซ้ำ สามารถรันคำสั่งตรวจของขั้น 1 ข้อ 2 ซ้ำโดยเปลี่ยน
    `(SELECT id FROM users WHERE role='staff')` เป็น `(SELECT id FROM employees)` ต้องได้ `Empty set` เช่นกัน
-3. เปิดโหมดปิดปรับปรุง (`touch /etc/nginx/maintenance.on`) และตั้ง admin `SCHEDULER=off` ชั่วคราว (ALTER TABLE `users` ล็อกตาราง)
-4. รัน migration 9 ของ member ด้วยผู้ใช้สิทธิ์สูง:
+
+   **ตรวจ FK ที่จะขวาง `DELETE FROM users WHERE role = 'staff'`** (FK เหล่านี้ไม่มี `ON DELETE CASCADE`
+   ชื่อคอลัมน์ตาม member `src/server/db/migrations.ts`) อ่านอย่างเดียว:
    ```bash
-   cd "$MEMBER_DIR" && git pull && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate && DATABASE_URL="$MIGRATE_URL" npm run db -- status
+   mariadb "$DB" -e "
+   SELECT 'bills.user_id' AS ref, COUNT(*) AS n FROM bills WHERE user_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'transactions.user_id', COUNT(*) FROM transactions WHERE user_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'deposits.user_id', COUNT(*) FROM deposits WHERE user_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'withdrawals.user_id', COUNT(*) FROM withdrawals WHERE user_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'promotion_claims.user_id', COUNT(*) FROM promotion_claims WHERE user_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'voucher_redemptions.user_id', COUNT(*) FROM voucher_redemptions WHERE user_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'users.upline1_id', COUNT(*) FROM users WHERE upline1_id IN (SELECT id FROM users WHERE role='staff')
+   UNION ALL SELECT 'users.upline2_id', COUNT(*) FROM users WHERE upline2_id IN (SELECT id FROM users WHERE role='staff');"
    ```
-5. Deploy member build ที่มี migration 9 (Task 15) (admin ไม่ต้อง deploy ใหม่), คืน admin `SCHEDULER=on` แล้วปิดโหมดปิดปรับปรุง
+   `n` ต้องเป็น `0` **ทุกแถว** ถ้าแถวใด > 0: **หยุด** ห้ามรัน migration 9 สืบว่าแถวนั้นมาจากไหน (staff มีโพย/รายการเงิน/เป็น upline)
+   และตัดสินใจกับเจ้าของระบบ **ห้าม "แก้" ด้วยการลบแถวเงิน** (`bills`, `transactions`, `deposits`, `withdrawals` ฯลฯ)
+   FK ที่ **cascade** (แถวจะถูกลบไปพร้อม staff ไม่ขวาง): `sessions`, `login_challenges`, `number_sets`, `ref_clicks`, `member_points`
+   หมายเหตุ: `DELETE` เป็นคำสั่งเดียวใน InnoDB จึง atomic ถ้า FK ขวางจะล้มทั้งคำสั่งและไม่มีแถวใดถูกลบ;
+   migration 9 รันซ้ำได้ (คำสั่ง DDL ทุกคำสั่งใช้ `IF EXISTS`) ถ้าล้มกลางทาง แก้สาเหตุแล้วรัน `npm run db -- migrate` ข้อ 4 ซ้ำได้เลย
+3. เปิดโหมดปิดปรับปรุง (`touch /etc/nginx/maintenance.on`) และตั้ง admin `SCHEDULER=off` ชั่วคราว (ALTER TABLE `users` ล็อกตาราง)
+4. รัน migration 9 ของ member ด้วยผู้ใช้สิทธิ์สูง จาก tag `admin-split-contract` (ไม่ใช่ `git pull`):
+   ```bash
+   cd "$MEMBER_DIR" && git fetch --tags && git checkout admin-split-contract && git log --oneline -1 && npm ci
+   DATABASE_URL="$MIGRATE_URL" npm run db -- migrate && DATABASE_URL="$MIGRATE_URL" npm run db -- status
+   ```
+5. Deploy member build ที่มี migration 9 (Task 15) = checkout `admin-split-contract` เดิมจากข้อ 4 (`DB_AUTO_MIGRATE=false` ยังอยู่)
+   (admin ไม่ต้อง deploy ใหม่), คืน admin `SCHEDULER=on` แล้วปิดโหมดปิดปรับปรุง:
+   ```bash
+   cd "$MEMBER_DIR" && git describe --tags --exact-match && grep '^DB_AUTO_MIGRATE=' .env.production.local
+   npm ci && npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 reload chokprathan
+   ```
    `grants.sql` ไม่ต้องรันซ้ำ (สิทธิ์เดิมบน `staff_roles` ที่ค้างอยู่ไม่มีผล) ถ้าจะรันซ้ำหลัง contract ให้ตัดบรรทัด GRANT
    บน `lotto.staff_roles` ทั้งสองบรรทัดออกก่อน เพราะ GRANT ระดับตารางบนตารางที่ไม่มีแล้วจะล้ม
 
@@ -380,7 +440,8 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 5. **Scheduler:** admin เป็นเจ้าของงานรอบ/settlement/ฝาก/audit/stats ถ้า admin ล่มทั้งหมด การออกผลและจ่ายรางวัลล่าช้า
    (การรับแทงยังถูกจำกัดด้วยเวลาปิดรอบ) ให้รัน admin 2 replica เสมอ และห้ามเปิด scheduler แบบเดิมใน member อีก
    `simulateCrowd` (โหลดจำลองบน staging) ไม่ย้ายมา admin
-6. **`/api/health` field `scheduler`** อ่านแถว `system_status.name='scheduler'` ที่สองแอปเขียนร่วมกัน ใช้ `IS_USED_LOCK` ข้างบนถ้าต้องรู้ว่าแอปไหนถือ
+6. **`/api/health` field `scheduler`** ของ admin อ่านแถว `system_status.name='scheduler'` (เขียนโดย admin) ส่วนของ member
+   อ่านแถว `member_scheduler` (เขียนโดย member) ใช้ `IS_USED_LOCK` ข้างบนถ้าต้องรู้ว่า process ไหนถือ lock
 7. **ความลับ AMB** อยู่ที่ member เท่านั้น
 8. **Migration ของ member** รันด้วย `MIGRATE_URL` แยกเสมอ (member รันด้วย `DB_AUTO_MIGRATE=false`) และหลังเพิ่มตารางใหม่ใน member
    ต้องเพิ่ม GRANT ให้ `chok_member` (`node scripts/check-grants.mjs --member "$MEMBER_DIR"` จะฟ้องถ้าขาด)

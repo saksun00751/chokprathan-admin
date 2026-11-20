@@ -74,8 +74,9 @@ from a checkout with `npm ci`, passing the URL in the environment (it wins over 
 migration user (runbook step 0).
 
 **Health check.** `GET /api/health` returns `{"ok":true,"db":"up","scheduler":"ok|stale"}` or 503 when the
-database is down; use it for monitoring and load-balancer checks. `scheduler` reflects the `system_status` heartbeat
-row, which the member app writes too; to see which app holds the work run
+database is down; use it for monitoring and load-balancer checks. `scheduler` reflects this app's `system_status`
+heartbeat row `scheduler` (the member app writes its own row, `member_scheduler`, which its `/api/health` reads); to see
+which process holds the work run
 `SELECT IS_USED_LOCK('chokprathan-admin:scheduler')`.
 
 **Scheduler and replicas.** Run 2 replicas (PM2 `instances: 2`): every
