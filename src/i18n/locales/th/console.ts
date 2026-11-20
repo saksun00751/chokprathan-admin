@@ -1,4 +1,4 @@
-/** The staff sign-in page (/console). Its own namespace: never sent to customer pages. */
+/** The employee sign-in page (/login). Its own namespace, provided only by the sign-in layout. */
 export const staffConsole = {
   title: "เข้าสู่ระบบหลังบ้าน",
   heading: "หลังบ้าน",
