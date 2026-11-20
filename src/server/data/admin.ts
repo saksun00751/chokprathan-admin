@@ -23,7 +23,7 @@ import { listRoles, listStaff } from "@/server/services/employees";
 import { recentStaffSignIns } from "@/server/logs";
 import { auditIntegrity } from "@/server/services/audit";
 import { bankMoves, listBankAccounts, payoutAccounts } from "@/server/services/banks";
-import { doorUrl, getStaff, needsTotpSetup, requireStaff } from "@/server/session";
+import { getEmployee, loginUrl, needsTotpSetup, requireEmployee } from "@/server/session";
 import { redirect } from "next/navigation";
 
 /** Whether the SMS provider the member app sends one-time codes with is configured in this environment. */
@@ -57,7 +57,7 @@ export interface AdminRoundRow {
 
 export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: string; lottoId?: number; phase?: RoundPhase | "all" }) {
   const { lang, t } = await getI18n();
-  await requireStaff("rounds.view");
+  await requireEmployee("rounds.view");
   await io();
   const now = Date.now();
   const day = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : dayKey(now);
@@ -100,7 +100,7 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
 /** Rounds past their close time that still wait for a result typed in by staff. */
 export async function getAwaitingResults() {
   const { lang, t } = await getI18n();
-  await requireStaff("rounds.result");
+  await requireEmployee("rounds.result");
   await io();
   const now = Date.now();
   const [rows, lottos] = await Promise.all([
@@ -139,7 +139,7 @@ export async function getAwaitingResults() {
 
 export async function getAdminRound(roundId: number) {
   const { lang, t } = await getI18n();
-  const viewer = await requireStaff("rounds.view");
+  const viewer = await requireEmployee("rounds.view");
   await io();
   const now = Date.now();
   const round = await getRound(roundId);
@@ -193,7 +193,7 @@ export async function getAdminRound(roundId: number) {
 }
 
 export async function getMembers(search: string, limit = 100) {
-  const viewer = await requireStaff("members.view");
+  const viewer = await requireEmployee("members.view");
   await io();
   const s = search.trim().slice(0, 40);
   const like = `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -219,7 +219,7 @@ export async function getMembers(search: string, limit = 100) {
 
 export async function getMember(userId: number) {
   const { lang, t } = await getI18n();
-  const viewer = await requireStaff("members.view");
+  const viewer = await requireEmployee("members.view");
   await io();
   const user = await q1<{
     id: number;
@@ -348,7 +348,7 @@ export async function getMember(userId: number) {
 type QueueUser = { phone: string | null; name: string; bank_code: string | null; bank_account: string | null; bank_name: string | null; blocked: boolean };
 
 export async function getFinanceQueues() {
-  const viewer = await requireStaff("finance.view");
+  const viewer = await requireEmployee("finance.view");
   await io();
   const withUser = `u.phone AS u_phone, u.name AS u_name, u.bank_code AS u_bank_code, u.bank_account AS u_bank_account, u.bank_name AS u_bank_name`;
   type Joined<T> = T & { u_phone: string | null; u_name: string; u_bank_code: string | null; u_bank_account: string | null; u_bank_name: string | null };
@@ -406,20 +406,20 @@ export async function getFinanceQueues() {
 }
 
 export async function getRiskSettings() {
-  await requireStaff("risk.manage");
+  await requireEmployee("risk.manage");
   await io();
   const s = await getSettings();
   return { rates: s.rates, risk: s.risk, limits: s.limits };
 }
 
 export async function getAdminLottos(): Promise<Lotto[]> {
-  await requireStaff("lottos.manage");
+  await requireEmployee("lottos.manage");
   await io();
   return listLottos({ includeDisabled: true });
 }
 
 export async function getAdminContent() {
-  await requireStaff("promotions.manage");
+  await requireEmployee("promotions.manage");
   await io();
   const [promotions, vouchers] = await Promise.all([
     q<{
@@ -444,7 +444,7 @@ export async function getAdminContent() {
 }
 
 export async function getAdminNews() {
-  await requireStaff("content.manage");
+  await requireEmployee("content.manage");
   await io();
   const rows = await q<{ id: number; title: string; body: string; pinned: number; published: number; created_at: number; i18n: string | null }>(
     "SELECT * FROM news ORDER BY pinned DESC, created_at DESC LIMIT 200",
@@ -453,7 +453,7 @@ export async function getAdminNews() {
 }
 
 export async function getAllSettings() {
-  const viewer = await requireStaff("settings.manage");
+  const viewer = await requireEmployee("settings.manage");
   await io();
   const s = await getSettings();
   return {
@@ -469,7 +469,7 @@ export async function getAllSettings() {
 }
 
 export async function getAudit({ limit = 200, actorId, action }: { limit?: number; actorId?: number; action?: string } = {}) {
-  await requireStaff("audit.view");
+  await requireEmployee("audit.view");
   await io();
   const where: string[] = [];
   const params: (string | number)[] = [];
@@ -504,7 +504,7 @@ export async function getAudit({ limit = 200, actorId, action }: { limit?: numbe
 
 /** Website bank accounts with balances, and the move history of one of them. */
 export async function getBanksPage(selected?: number) {
-  const viewer = await requireStaff("banks.view");
+  const viewer = await requireEmployee("banks.view");
   await io();
   const accounts = await listBankAccounts({ includeArchived: true });
   const current = accounts.find((a) => a.id === selected) ?? accounts.find((a) => a.archivedAt === null) ?? null;
@@ -518,19 +518,19 @@ export async function getBanksPage(selected?: number) {
 
 /** The last result of the hash-chain check (null until the scheduler has run it once). */
 export async function getAuditIntegrity() {
-  await requireStaff("audit.view");
+  await requireEmployee("audit.view");
   await io();
   return auditIntegrity();
 }
 
 export async function getAdminBanners() {
-  await requireStaff("content.manage");
+  await requireEmployee("content.manage");
   await io();
   return listBanners();
 }
 
 export async function getStaffPage() {
-  const viewer = await requireStaff("staff.manage");
+  const viewer = await requireEmployee("staff.manage");
   await io();
   const [staff, roles] = await Promise.all([listStaff(), listRoles()]);
   const logins = await recentStaffSignIns(staff, 60);
@@ -539,22 +539,22 @@ export async function getStaffPage() {
 
 /** The signed-in staff member's own security page (password, two-step sign-in). */
 export async function getOwnSecurity() {
-  const viewer = await requireStaffAllowingPasswordChange();
+  const viewer = await requireEmployeeAllowingPasswordChange();
   await io();
   const [row, site] = await Promise.all([q1<{ totp_enabled: number }>("SELECT totp_enabled FROM employees WHERE id = ?", viewer.id), getSetting("site")]);
   return { viewer, totpEnabled: row?.totp_enabled === 1, totpRequired: site.staffTotpRequired, mustSetUpTotp: await needsTotpSetup(viewer) };
 }
 
-/** Like requireStaff, but lets staff who must change their password reach the page that does it. */
-export async function requireStaffAllowingPasswordChange() {
-  const viewer = await getStaff();
-  if (!viewer) redirect(await doorUrl("staff", "/admin/security"));
+/** Like requireEmployee, but lets staff who must change their password reach the page that does it. */
+export async function requireEmployeeAllowingPasswordChange() {
+  const viewer = await getEmployee();
+  if (!viewer) redirect(await loginUrl("/security"));
   return viewer;
 }
 
 /** The blocklist page: active entries (optionally one kind or matching a search) and recently lifted ones. */
 export async function getBlocklistPage({ kind, search }: { kind?: string; search?: string }) {
-  const viewer = await requireStaff("members.block");
+  const viewer = await requireEmployee("members.block");
   await io();
   const data = await listBlocks({ kind: isBlockKind(kind) ? kind : undefined, search: search?.slice(0, 60) });
   const view = contactView(viewer);
@@ -568,7 +568,7 @@ export async function getBlocklistPage({ kind, search }: { kind?: string; search
 
 /** The activities page: settings, the lotteries guesses can be placed on, and what the activities cost. */
 export async function getAdminActivities() {
-  const viewer = await requireStaff("promotions.manage");
+  const viewer = await requireEmployee("promotions.manage");
   await io();
   const now = Date.now();
   const today = dayStartMs(dayKey(now));
@@ -606,7 +606,7 @@ export async function getAdminActivities() {
 
 /** The games page: aggregator connection, products by group, what games took and paid, and shortfalls. */
 export async function getAdminGames() {
-  const viewer = await requireStaff("games.manage");
+  const viewer = await requireEmployee("games.manage");
   await io();
   const now = Date.now();
   const today = dayStartMs(dayKey(now));

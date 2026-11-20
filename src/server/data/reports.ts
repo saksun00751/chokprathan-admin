@@ -15,7 +15,7 @@ import type { Dict } from "@/i18n/dictionaries";
 import { fmt, formatDayMonth, formatNumber } from "@/i18n/format";
 import { lottoShort, roundName } from "@/i18n/labels";
 import { serverI18n } from "@/i18n/server";
-import { requireStaff } from "@/server/session";
+import { requireEmployee } from "@/server/session";
 
 export type ColumnKind = "text" | "int" | "baht" | "pct" | "datetime" | "date";
 export interface ReportColumn {
@@ -477,8 +477,8 @@ async function staff(r: DateRange, R: ReportsDict): Promise<ReportTable> {
 /* ---------------- entry ---------------- */
 
 export async function getReport(id: ReportId, input: { period?: string; from?: string; to?: string }, { forExport = false } = {}) {
-  const viewer = await requireStaff(forExport ? "reports.export" : "reports.view");
-  if (id === "staff") await requireStaff("audit.view");
+  const viewer = await requireEmployee(forExport ? "reports.export" : "reports.view");
+  if (id === "staff") await requireEmployee("audit.view");
   await io();
   const now = Date.now();
   const range = resolveRange(input, now) ?? resolveRange({ period: "7d" }, now)!;

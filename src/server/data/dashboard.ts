@@ -17,7 +17,7 @@ import { schedulerState } from "@/server/services/scheduler";
 import { mongoPing } from "@/server/mongo";
 import { seriesOf, sumLottos, sumMoney, sumPlaced, sumSettled, sumTx } from "@/server/stats/derive";
 import { rangeStats, type RangeStats } from "@/server/stats/store";
-import { requireStaff } from "@/server/session";
+import { requireEmployee } from "@/server/session";
 
 /** Totals over the range from the summary documents (see server/stats). */
 async function bettingTotals(s: RangeStats) {
@@ -203,7 +203,7 @@ async function health(now: number, t: Dict): Promise<HealthCheck[]> {
 const change = (now: number, before: number) => (before === 0 ? (now === 0 ? 0 : null) : (now - before) / Math.abs(before));
 
 export async function getDashboard(input: { period?: string; from?: string; to?: string }) {
-  const viewer = await requireStaff("dashboard.view");
+  const viewer = await requireEmployee("dashboard.view");
   const { lang, t } = await getI18n();
   await io();
   const now = Date.now();
