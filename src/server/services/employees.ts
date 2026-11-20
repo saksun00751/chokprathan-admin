@@ -164,7 +164,8 @@ export async function deleteRole(id: number, actor: StaffActor): Promise<{ ok: t
   return { ok: true };
 }
 
-const USERNAME = /^[a-z][a-z0-9._-]{2,39}$/;
+/** Employee usernames (also checked by `npm run db -- create-owner`). */
+export const USERNAME = /^[a-z][a-z0-9._-]{2,39}$/;
 
 /** Create a staff account. It must change its password at first sign-in. */
 export async function createStaff(
