@@ -314,6 +314,16 @@ export async function disableTotp(employeeId: number) {
   await run("UPDATE employees SET totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL WHERE id = ?", employeeId);
 }
 
+/** An employee changes their own password (also clears a forced change after a reset). Mirrors the member app's changePassword. */
+export async function changeEmployeePassword(employeeId: number, current: string, next: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const e = await errorsT();
+  const row = await q1<{ password_hash: string }>("SELECT password_hash FROM employees WHERE id = ?", employeeId);
+  if (!row || !(await verifyPassword(current, row.password_hash))) return { ok: false, error: e.auth.currentWrong };
+  if (await verifyPassword(next, row.password_hash)) return { ok: false, error: e.auth.sameAsOld };
+  await run("UPDATE employees SET password_hash = ?, must_change_password = 0 WHERE id = ?", await hashPassword(next), employeeId);
+  return { ok: true };
+}
+
 /** A password policy employee accounts must meet. */
 export function employeePasswordProblem(password: string, e: Pick<Dict["errors"], "auth">): string | null {
   if (password.length < 10) return e.auth.staffShort;

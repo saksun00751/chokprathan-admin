@@ -2,7 +2,7 @@ import { DEFAULT_ADJUST_LIMITS } from "@/domain/adjust";
 import { BET_TYPES, BET_TYPE_ORDER } from "@/domain/betTypes";
 import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "@/domain/types";
 
-/** Seed catalog (spec §2). Editable later in /admin/lottos. */
+/** Seed catalog (spec §2). Editable later in /lottos. */
 export interface CatalogEntry {
   slug: string;
   name: string;
