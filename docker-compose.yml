@@ -1,0 +1,27 @@
+# Production-like stack for the back office: the admin app (2 replicas) behind nginx. MariaDB is external
+# (DATABASE_URL, as the chok_admin user). Meant for a host where nothing else binds 80/443; on the member
+# app's host, run admin with PM2 (port 3100) and add deploy/nginx.conf's server blocks to the existing nginx.
+name: chokprathan-admin
+services:
+  app:
+    build: .
+    env_file: .env.production.local
+    environment:
+      TRUST_PROXY: "1"
+    restart: unless-stopped
+    deploy:
+      # Two replicas: one holds the scheduler lock (chokprathan-admin:scheduler), the other is the standby.
+      # SCHEDULER=off in .env.production.local stops both (cut-over runbook, docs/runbook-cutover.md).
+      replicas: 2
+    expose:
+      - "3100"
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    restart: unless-stopped

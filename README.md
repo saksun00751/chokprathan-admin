@@ -18,7 +18,12 @@ Copy `.env.example` to `.env.local` (development) or `.env.production.local` (de
 | `MONGODB_URL`, `MONGODB_DB` | Optional; same MongoDB as the member site (media, stats, audit copy). |
 | `NEXT_PUBLIC_SITE_URL` | Public URL of this app. |
 | `TRUST_PROXY` | `1` behind the bundled nginx (client IP from `X-Real-IP`). |
+| `ALLOWED_ORIGINS` | Optional, comma-separated extra origins for Server Actions (only when a proxy rewrites the host name). |
+| `SETTLE_CHUNK` | Optional, winning bills paid per settlement batch (default 500). |
+| `SMS_PROVIDER`, `THAIBULKSMS_API_KEY`, `THAIBULKSMS_API_SECRET` | Optional, read only so the settings page can say whether the member app's SMS is configured; admin never sends SMS. Usually left unset. |
 | `TEST_DATABASE_URL` | Disposable MariaDB for DB tests (wiped on every run). It needs the member schema: run the member repo's `npm run db -- migrate` against it first. Unset, DB tests are skipped. |
+| `TEST_MONGODB_URL`, `TEST_MONGODB_DB` | Optional MongoDB for tests (under vitest `MONGODB_URL` is ignored). |
+| `ISOLATION_MEMBER_URL`, `ISOLATION_ADMIN_URL` | Only for `src/server/db/isolation.test.ts` on a disposable server. |
 
 ## Database commands
 
@@ -40,6 +45,51 @@ Run it as a MariaDB administrator after replacing the database name and password
   an admin table granted to the member). Run it after any change to SQL in `src/`.
 - `src/server/db/isolation.test.ts`: checks the grants on a real, disposable server (instructions in
   the file). Skipped in a normal `npm test`.
+
+## Deploy
+
+The cut-over from the old back office (order, checks, rollback) is in
+[`docs/runbook-cutover.md`](docs/runbook-cutover.md). Follow it for the first deploy.
+
+**Ports.** The admin app listens on **3100** (Dockerfile `PORT`, `ecosystem.config.cjs`); the member app uses
+3000, so both can run on one host. nginx (`deploy/nginx.conf`, `server_name admin.example.com`) proxies
+443 to it; its zone and upstream names are prefixed `admin_` so it can be added to the member's nginx.
+
+**Environment.** `cp .env.example .env.production.local` and set at least `DATABASE_URL` (the `chok_admin`
+user), `NEXT_PUBLIC_SITE_URL`, `TRUST_PROXY=1` and `SCHEDULER`. Never add AMB secrets.
+
+**Docker** (a host where nothing else binds 80/443):
+
+```sh
+docker compose up -d --build     # 2 app replicas + nginx; certificates in deploy/certs/
+docker compose ps                # both app containers "healthy"
+```
+
+**PM2** (for example on the member app's host, behind its nginx with the server blocks of `deploy/nginx.conf`
+and upstream `127.0.0.1:3100`):
+
+```sh
+npm ci && npm run build
+cp -r .next/static .next/standalone/.next/
+cp .env.production.local .next/standalone/
+pm2 start ecosystem.config.cjs   # name chokprathan-admin, 2 processes; later: pm2 reload chokprathan-admin
+```
+
+**Database commands in production.** The runtime image has no `scripts/` or `tsx`: run `npm run db -- ...`
+from a checkout with `npm ci`, passing the URL in the environment (it wins over `.env.local`), e.g.
+`DATABASE_URL='mysql://...' npm run db -- migrate`. Migrations and `import-staff` run with a privileged
+migration user (runbook step 0).
+
+**Health check.** `GET /api/health` returns `{"ok":true,"db":"up","scheduler":"ok|stale"}` or 503 when the
+database is down; the Docker `HEALTHCHECK` uses it. `scheduler` reflects the `system_status` heartbeat
+row, which the member app writes too; to see which app holds the work run
+`SELECT IS_USED_LOCK('chokprathan-admin:scheduler')`.
+
+**Scheduler and replicas.** Run 2 replicas (compose `deploy.replicas: 2`, PM2 `instances: 2`): every
+process runs the timer, the MariaDB named lock `chokprathan-admin:scheduler` lets one do the work and the
+other takes over if it dies. `SCHEDULER=off` turns the work off on every process of this app (restart to
+apply). Keep it off until the switch so the old app's scheduler is the only one running; after the switch
+keep it on (the member app no longer runs rounds or settlement) except during a rollback.
 
 ## Rules
 

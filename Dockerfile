@@ -1,4 +1,6 @@
 # Multi-stage build: dependencies, build, then a small runtime image with the standalone server.
+# The admin app listens on 3100 (the member app uses 3000) so both can run on one host.
+# The runtime image has no scripts/ or tsx: run `npm run db -- ...` from a checkout (see README "Deploy").
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -16,11 +18,11 @@ RUN npm run build
 
 FROM node:24-alpine AS run
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3100 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 USER app
-EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
+EXPOSE 3100
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0.1:3100/api/health || exit 1
 CMD ["node", "server.js"]
