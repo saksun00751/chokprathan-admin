@@ -62,4 +62,17 @@ describe.skipIf(!hasTestDb)("importStaff", () => {
     await run("ALTER TABLE users DROP COLUMN role");
     expect(await importStaff()).toEqual({ roles: 0, employees: 0 });
   });
+
+  it("does nothing after the contract step: staff_role_id column and staff_roles table are gone while role still exists", async () => {
+    await run("ALTER TABLE users DROP COLUMN staff_role_id");
+    await run("DROP TABLE staff_roles");
+    expect(await importStaff()).toEqual({ roles: 0, employees: 0 });
+    expect(await q1("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'")).toBeTruthy();
+  });
+
+  it("does nothing when only staff_roles is gone", async () => {
+    await run("DROP TABLE staff_roles");
+    expect(await importStaff()).toEqual({ roles: 0, employees: 0 });
+    expect((await q1<{ n: number }>("SELECT COUNT(*) AS n FROM employees"))?.n).toBe(0);
+  });
 });

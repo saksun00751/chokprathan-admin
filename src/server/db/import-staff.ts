@@ -7,13 +7,19 @@ import { q1, run, tx } from "./index";
  * keeping every id (so historical actor_id / created_by values stay correct). Safe to re-run:
  * existing rows are left alone unless `refresh` is set, which overwrites them from the source
  * (use it once, during the maintenance window, to pick up the last changes).
- * Does nothing after the member app has dropped the legacy columns.
+ * Does nothing once the member contract step has run (`staff_roles` or `users.staff_role_id` gone; `users.role` stays).
  */
 export async function importStaff({ refresh = false }: { refresh?: boolean } = {}): Promise<{ roles: number; employees: number }> {
-  const legacy = await q1(
+  // The contract step (member migration 9) keeps users.role but drops staff_roles and users.staff_role_id,
+  // so every legacy piece the copy reads must still be there.
+  const rolesTable = await q1("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_roles'");
+  const roleColumn = await q1(
     "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'",
   );
-  if (!legacy) return { roles: 0, employees: 0 };
+  const staffRoleColumn = await q1(
+    "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'staff_role_id'",
+  );
+  if (!rolesTable || !roleColumn || !staffRoleColumn) return { roles: 0, employees: 0 };
   return tx(async () => {
     await run(
       `INSERT INTO employee_roles (id, name, description, permissions, is_owner, created_at, updated_at)
