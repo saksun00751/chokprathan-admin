@@ -115,7 +115,7 @@ password=MIGRATE_PASS
    ```
    ถ้าได้แถวใด ๆ = มี id ที่ไม่ใช่ staff (สมาชิก หรือ id ที่ไม่มีแล้ว) ถูกบันทึกเป็นผู้กระทำ: **หยุด** ห้ามทำขั้น 2
    ตรวจว่าแถวนั้นมาจากโค้ดส่วนไหนและแก้ข้อมูลหรือโค้ดก่อน แล้วรันซ้ำจนได้ `Empty set`
-   (การตรวจนี้มีความหมายเฉพาะ **ก่อน** contract เพราะ migration 9 ลบแถว staff และคอลัมน์ `role` ออกจาก `users`)
+   (การตรวจนี้มีความหมายเฉพาะ **ก่อน** contract เพราะ migration 9 ลบแถว staff ออกจาก `users`; คอลัมน์ `role` ยังอยู่แต่เหลือแค่ `member`)
 3. จดจำนวน staff ไว้เทียบในขั้น 2 และ 6:
    ```bash
    mariadb "$DB" -e "SELECT COUNT(*) AS staff FROM users WHERE role='staff'; SELECT COUNT(*) AS roles FROM staff_roles;"
@@ -323,14 +323,12 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
 
 ## 6. Contract (1–2 สัปดาห์หลัง Switch, ย้อนไม่ได้)
 
-**ด่านก่อนเริ่ม (ณ ตอนเขียนเอกสารนี้ยังไม่ผ่าน):** migration 9 (plan Task 15) ลบคอลัมน์ `users.role` และ `users.staff_note`
-แต่โค้ด admin ปัจจุบันยังกรอง `role = 'member'` และเขียน `users.staff_note` (บันทึกของพนักงานต่อสมาชิก) ถ้ารัน migration 9
-ก่อน admin จะพัง ต้องมี admin build ที่เลิกใช้สองคอลัมน์นี้ (หรือเปลี่ยน migration 9 ให้เก็บ `staff_note` ไว้) และอัปเดต
-`grants.sql` (ตัด `staff_note` ออกจาก column grant และ `staff_roles`) ให้พร้อมก่อน ตรวจด้วย:
-```bash
-cd "$ADMIN_DIR" && grep -rnE "role ?= ?'(member|staff)'|staff_note" src --include='*.ts' --include='*.tsx' | grep -v '\.test\.' | grep -v import-staff
-```
-ต้องไม่มีผลลัพธ์ (`import-staff.ts` ตรวจคอลัมน์ `role` ก่อนอ่านอยู่แล้ว) และ `node scripts/check-grants.mjs` ผ่าน
+**ไม่ต้องแก้โค้ด admin ก่อน migration 9.** migration 9 (plan Task 15) **เก็บ** คอลัมน์ `users.role` (ENUM เดิม) และ
+`users.staff_note` (บันทึกของพนักงานต่อสมาชิก ซึ่งเป็นข้อมูลสมาชิก) ไว้ และทำแค่: ลบแถว staff ออกจาก `users`, ลบ FK
+`users_staff_role_fk`, ลบคอลัมน์ `staff_role_id`, `totp_secret`, `totp_enabled`, `totp_last_step`, `must_change_password`
+และลบตาราง `staff_roles` หลังจากนั้นทุกแถวใน `users` เป็นสมาชิก ตัวกรอง `role = 'member'` ของ admin (~20 จุด) จึงทำงานเหมือนเดิม
+และ column grant `UPDATE (… staff_note)` ใน `grants.sql` ยังถูกต้อง (`role` เหลือเป็นคอลัมน์ค่าเดียว จะลบทีหลังก็ได้เมื่อทั้งสองแอปเลิกกรองด้วยมัน)
+`npm run db -- import-staff` ไม่ทำอะไรหลัง contract (ตรวจว่ามี `staff_roles`, `users.role` และ `users.staff_role_id` ครบก่อนอ่าน)
 
 1. Backup อีกครั้ง:
    ```bash
@@ -338,28 +336,35 @@ cd "$ADMIN_DIR" && grep -rnE "role ?= ?'(member|staff)'|staff_note" src --includ
    mysqldump --single-transaction "$DB" users staff_roles audit_log employees employee_roles | gzip > "pre-contract-tables-$STAMP.sql.gz"
    mysqldump --single-transaction --routines --triggers "$DB" | gzip > "pre-contract-full-$STAMP.sql.gz"
    ```
-2. ตรวจก่อนลบ: staff ทุกคนอยู่ใน `employees` แล้ว และ id ผู้กระทำทุกค่ามีอยู่ใน `employees`:
+2. ตรวจก่อนลบ (**ด่าน: ต้องผ่านก่อนรัน migration 9** เพราะ migration 9 ลบแถว staff ทุกแถวใน `users`):
+   แถว staff ใน `users` ทุกแถวมีใน `employees` ด้วย id เดียวกัน และไม่มี staff ที่ขาดจาก `employees`:
    ```bash
    mariadb "$DB" -e "SELECT COUNT(*) AS staff_in_users FROM users WHERE role='staff'; SELECT COUNT(*) AS imported FROM employees WHERE id IN (SELECT id FROM users WHERE role='staff');"
    mariadb "$DB" -e "SELECT u.id FROM users u LEFT JOIN employees e ON e.id = u.id WHERE u.role='staff' AND e.id IS NULL;"
    ```
    `staff_in_users` = `imported` = จำนวนพนักงานที่คัดลอกมา (ขั้น 2 ข้อ 3; `employees` ทั้งหมดอาจมากกว่าถ้ามีพนักงานใหม่ใน admin)
-   และคำสั่งที่สองได้ `Empty set` สามารถรันคำสั่งตรวจของขั้น 1 ข้อ 2 ซ้ำโดยเปลี่ยน
+   และคำสั่งที่สองได้ `Empty set` (ไม่มี staff ที่ขาดจาก `employees`) ถ้าไม่ผ่าน: รัน `npm run db -- import-staff` ก่อน
+   (ยังใช้ได้เพราะ `staff_roles` ยังอยู่) แล้วตรวจซ้ำ สามารถรันคำสั่งตรวจของขั้น 1 ข้อ 2 ซ้ำโดยเปลี่ยน
    `(SELECT id FROM users WHERE role='staff')` เป็น `(SELECT id FROM employees)` ต้องได้ `Empty set` เช่นกัน
 3. เปิดโหมดปิดปรับปรุง (`touch /etc/nginx/maintenance.on`) และตั้ง admin `SCHEDULER=off` ชั่วคราว (ALTER TABLE `users` ล็อกตาราง)
 4. รัน migration 9 ของ member ด้วยผู้ใช้สิทธิ์สูง:
    ```bash
    cd "$MEMBER_DIR" && git pull && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate && DATABASE_URL="$MIGRATE_URL" npm run db -- status
    ```
-5. Deploy member build ที่มี migration 9 (Task 15) และ admin build ที่ผ่านด่านด้านบน, คืน admin `SCHEDULER=on`, ใช้ `grants.sql`
-   ฉบับใหม่ถ้ามีการเปลี่ยน แล้วปิดโหมดปิดปรับปรุง
+5. Deploy member build ที่มี migration 9 (Task 15) (admin ไม่ต้อง deploy ใหม่), คืน admin `SCHEDULER=on` แล้วปิดโหมดปิดปรับปรุง
+   `grants.sql` ไม่ต้องรันซ้ำ (สิทธิ์เดิมบน `staff_roles` ที่ค้างอยู่ไม่มีผล) ถ้าจะรันซ้ำหลัง contract ให้ตัดบรรทัด GRANT
+   บน `lotto.staff_roles` ทั้งสองบรรทัดออกก่อน เพราะ GRANT ระดับตารางบนตารางที่ไม่มีแล้วจะล้ม
 
 **Verify:**
 ```bash
-mariadb "$DB" -e "SELECT COUNT(*) AS staff_columns FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME IN ('role','staff_role_id','staff_note','totp_secret','totp_enabled','totp_last_step','must_change_password'); SELECT COUNT(*) AS staff_roles_table FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_roles';"
+mariadb "$DB" -e "SELECT COUNT(*) AS staff_columns FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME IN ('staff_role_id','totp_secret','totp_enabled','totp_last_step','must_change_password'); SELECT COUNT(*) AS staff_roles_table FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_roles'; SELECT COUNT(*) AS non_members FROM users WHERE role <> 'member';"
+mariadb "$DB" -e "SELECT COUNT(*) AS kept_columns FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME IN ('role','staff_note');"
+cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 ```
-ทั้งสองค่าเป็น `0`; member `npm run db -- status` ได้ schema version 9; พนักงานเข้า admin ได้, สมาชิกเข้า member ได้,
-`/api/health` ทั้งสองแอป `ok`, `SELECT IS_USED_LOCK('chokprathan-admin:scheduler')` ไม่เป็น `NULL`
+`staff_columns`, `staff_roles_table`, `non_members` เป็น `0` ทั้งหมด; `kept_columns` เป็น `2`; `import-staff` พิมพ์
+`employee_roles: 0, employees: 0` โดยไม่ error; member `npm run db -- status` ได้ schema version 9; พนักงานเข้า admin ได้
+และหน้ารายชื่อสมาชิกของ admin แสดงสมาชิกครบ, สมาชิกเข้า member ได้, `/api/health` ทั้งสองแอป `ok`,
+`SELECT IS_USED_LOCK('chokprathan-admin:scheduler')` ไม่เป็น `NULL`
 
 ---
 

@@ -42,7 +42,8 @@ GRANT SELECT ON lotto.voucher_redemptions TO 'chok_admin'@'%';
 -- wheel_spins: the copied activities.spinWheel inserts here, but it is member-facing and nothing
 -- in production calls it (only activities.test.ts), so admin only reads.
 GRANT SELECT ON lotto.wheel_spins TO 'chok_admin'@'%';
--- staff_roles: read once by `npm run db -- import-staff` (legacy staff roles, member-owned).
+-- staff_roles: read once by `npm run db -- import-staff` (legacy staff roles, member-owned). The contract
+-- migration (member migration 9) drops this table; to re-run this file after it, delete both staff_roles lines.
 GRANT SELECT ON lotto.staff_roles TO 'chok_admin'@'%';
 
 -- Append-only ledgers: admin adds rows, never changes or removes them.
@@ -120,7 +121,8 @@ GRANT UPDATE (balance, cashback_balance, affiliate_balance, turnover_required, f
 -- (e.g. `DATABASE_URL=mysql://chok_migrate:...@.../lotto npm run db -- migrate` in the member repo)
 -- and start the member app with DB_AUTO_MIGRATE=false; otherwise its startup migrate() fails on
 -- `CREATE TABLE IF NOT EXISTS schema_migrations` and the scheduler does not start.
--- (After the contract migration the member `users` table loses its staff columns; nothing to change here.)
+-- (The contract migration keeps users.role and users.staff_note and drops only staff_role_id, totp_* and
+-- must_change_password, which no grant here names; the users grants stay as they are.)
 -- =====================================================================================
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.auth_log TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.bank_account_moves TO 'chok_member'@'%';
