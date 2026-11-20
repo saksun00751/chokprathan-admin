@@ -7,7 +7,7 @@
 
 - คำสั่ง SQL ใช้ `mariadb` client กับไฟล์ `~/.my.cnf` ของผู้ใช้สิทธิ์สูง (ไม่ใส่รหัสผ่านใน command line)
 - ชื่อฐานข้อมูลในตัวอย่างคือ `lotto` ถ้าไม่ใช่ ให้แก้ค่า `DB` ด้านล่าง (และใน `grants.sql` ผ่าน `sed`)
-- `npm run db -- ...` รันจาก checkout ของ repo บนเครื่องที่เข้าฐานข้อมูลได้ (image Docker ไม่มี `scripts/` และ `tsx`)
+- `npm run db -- ...` รันจาก checkout ของ repo บนเครื่องที่เข้าฐานข้อมูลได้ (build แบบ standalone ไม่มี `scripts/` และ `tsx`)
   `npm run db` อ่าน `.env.local` แต่ค่าที่ส่งใน environment ชนะค่าในไฟล์เสมอ จึงใช้รูป `DATABASE_URL=... npm run db -- <cmd>`
 - รหัสผ่านใน `DATABASE_URL` ต้องเข้ารหัสแบบ URL (`$` → `%24`, `@` → `%40`, `#` → `%23`)
 
@@ -59,7 +59,7 @@ password=MIGRATE_PASS
 4. [ ] **(d) งานตรวจ cache TTL (plan Task 17, ไฟล์ `docs/cache-ttl-audit.md` ใน member branch)** merge และ deploy ฝั่ง member
    **ก่อน** Switch: ค่าที่ admin แก้ (settings, blocklist, lottos/สถานะรอบ, banners) ต้องถึงหน้า member ภายใน TTL ≤ 5 วินาที
    เพราะ cache ของ member invalidate ได้เฉพาะใน process ของตัวเอง
-5. [ ] **(e) ความลับของ AMB ไม่ให้ admin.** ห้ามใส่ค่า AMB ใด ๆ ใน `.env.production.local`, compose หรือ CI ของ admin
+5. [ ] **(e) ความลับของ AMB ไม่ให้ admin.** ห้ามใส่ค่า AMB ใด ๆ ใน `.env.production.local` หรือ CI ของ admin
    (admin เปิด/ปิด `game_products` ด้วยการเขียนตารางร่วมเท่านั้น)
 6. [ ] **(f) ประวัติการเข้าสู่ระบบของพนักงานก่อน Switch อยู่ที่ store ของ member** (`auth_log` ใน MariaDB / Mongo `auth_log`)
    เป็น archive อ่านอย่างเดียว หน้า "ความปลอดภัย" ของ admin แสดงเฉพาะ `employee_auth_log` ตั้งแต่ Switch เป็นต้นไป
@@ -75,7 +75,6 @@ password=MIGRATE_PASS
    if ($maint) { return 503; }
    ```
    เปิด/ปิดได้โดยไม่ต้อง reload: `touch /etc/nginx/maintenance.on` / `rm /etc/nginx/maintenance.on`
-   (Docker: `docker compose exec nginx touch /etc/nginx/maintenance.on`)
 9. [ ] **(แนะนำ) id ของพนักงานใหม่ไม่ชนกับ id สมาชิก.** `import-staff` คง id เดิมของ staff ไว้ หลังจากนั้น `employees`
    AUTO_INCREMENT จะต่อจาก id staff สูงสุด ซึ่งมักซ้ำกับ id ของสมาชิกใน `users` ถ้า rollback หลังมีพนักงานใหม่ แอปเดิมจะอ่าน
    `actor_id` ของพนักงานใหม่เป็นสมาชิกคนนั้น ทางแก้คือขั้น 2 ข้อ 5 (ตั้ง AUTO_INCREMENT สูง) ตัดสินใจก่อนว่าจะทำหรือไม่
@@ -186,8 +185,7 @@ password=MIGRATE_PASS
    `DATABASE_URL=$ADMIN_URL`, **`SCHEDULER=off`**, `TRUST_PROXY=1`, `NEXT_PUBLIC_SITE_URL=https://admin.example.com`
    ```bash
    cd "$ADMIN_DIR" && grep -E '^(DATABASE_URL|SCHEDULER)=' .env.production.local | sed 's/:[^:@]*@/:***@/'
-   docker compose up -d --build && docker compose ps
-   # หรือ PM2 (ดู README "Deploy"): npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 start ecosystem.config.cjs
+   npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 start ecosystem.config.cjs
    ```
 
 **Verify:** `curl -fsS https://admin.example.com/api/health` ได้ `{"ok":true,"db":"up",...}`; `SHOW GRANTS` ตรงกับ `grants.sql`;
@@ -221,14 +219,13 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
 
 1. เปิดโหมดปิดปรับปรุงที่ nginx ของ member (ขั้น 0 ข้อ 8):
    ```bash
-   touch /etc/nginx/maintenance.on        # Docker: docker compose exec nginx touch /etc/nginx/maintenance.on
+   touch /etc/nginx/maintenance.on
    curl -s -o /dev/null -w '%{http_code}\n' https://example.com/   # จากเครื่องที่ไม่ใช่ IP ผู้ดูแล: 503
    ```
 2. Deploy member build ของ Task 14 (ไม่มีงาน round/settlement/deposit/audit/stats, ไม่มี `/admin`, `/console`)
    ยังใช้ `DATABASE_URL` เดิม:
    ```bash
    cd "$MEMBER_DIR" && git pull && npm ci && npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 reload chokprathan
-   # Docker: cd "$MEMBER_DIR" && git pull && docker compose up -d --build
    ```
    ตั้งแต่ข้อนี้ถึงข้อ 4 ไม่มี scheduler ใดรันงานรอบ/settlement (ตั้งใจ ระหว่างปิดปรับปรุง)
 3. คัดลอกข้อมูลพนักงานล่าสุดจากแอปเดิมทับ admin (ครั้งเดียว):
@@ -238,15 +235,14 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
 4. เปิด scheduler ฝั่ง admin และรีสตาร์ต (2 replica: ตัวหนึ่งถือ lock อีกตัวสำรอง):
    ```bash
    cd "$ADMIN_DIR" && sed -i.bak 's/^SCHEDULER=.*/SCHEDULER=on/' .env.production.local && grep '^SCHEDULER=' .env.production.local
-   docker compose up -d && docker compose ps
-   # PM2: cp .env.production.local .next/standalone/ && pm2 reload chokprathan-admin
+   cp .env.production.local .next/standalone/ && pm2 reload chokprathan-admin
    ```
 5. สลับ member เป็น `chok_member` และปิด auto-migrate (แก้ `.env.production.local` ของ member):
    ```bash
    cd "$MEMBER_DIR" && cp .env.production.local ".env.production.local.pre-switch"
    # แก้ DATABASE_URL=<MEMBER_URL> และเพิ่ม/แก้ DB_AUTO_MIGRATE=false ด้วย editor แล้วตรวจ:
    grep -E '^(DATABASE_URL|DB_AUTO_MIGRATE)=' .env.production.local | sed 's/:[^:@]*@/:***@/'
-   cp .env.production.local .next/standalone/ && pm2 reload chokprathan     # Docker: docker compose up -d
+   cp .env.production.local .next/standalone/ && pm2 reload chokprathan
    ```
 6. ตรวจทุกข้อก่อนปิดโหมดปิดปรับปรุง (จาก IP ผู้ดูแล):
    - [ ] พนักงานเข้าสู่ระบบที่ `https://admin.example.com/login` ได้ (รวม 2 ขั้น)
@@ -280,10 +276,10 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
      ```
      ต้องได้ `ERROR 1142 ... SELECT command denied`
    - [ ] log ของ member ไม่มีสิทธิ์ถูกปฏิเสธ: `pm2 logs chokprathan --lines 300 --nostream | grep -i denied`
-     (Docker: `docker compose logs --since 15m app | grep -i denied`) ต้องว่าง
+     ต้องว่าง
 7. ปิดโหมดปิดปรับปรุง:
    ```bash
-   rm /etc/nginx/maintenance.on           # Docker: docker compose exec nginx rm /etc/nginx/maintenance.on
+   rm /etc/nginx/maintenance.on
    ```
 
 **Verify:** ทุกช่องในข้อ 6 ติ๊กแล้ว และหลังเปิดเว็บ 15 นาที `/api/health` ทั้งสองแอปยัง `ok` และ log ไม่มี `denied`
@@ -298,8 +294,8 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
 1. เปิดโหมดปิดปรับปรุง: `touch /etc/nginx/maintenance.on`
 2. ปิด scheduler ฝั่ง admin:
    ```bash
-   cd "$ADMIN_DIR" && sed -i.bak 's/^SCHEDULER=.*/SCHEDULER=off/' .env.production.local && docker compose up -d
-   # PM2: cp .env.production.local .next/standalone/ && pm2 reload chokprathan-admin
+   cd "$ADMIN_DIR" && sed -i.bak 's/^SCHEDULER=.*/SCHEDULER=off/' .env.production.local
+   cp .env.production.local .next/standalone/ && pm2 reload chokprathan-admin
    ```
 3. คืน `DATABASE_URL` เดิมของ member (และ `DB_AUTO_MIGRATE` เดิม):
    ```bash
@@ -308,7 +304,6 @@ isolation test ผ่านบนเซิร์ฟเวอร์ทิ้ง�
 4. Deploy member build ก่อน Task 14 (commit ที่รันอยู่ก่อน Switch แทน `PREVIOUS_SHA`):
    ```bash
    cd "$MEMBER_DIR" && git checkout PREVIOUS_SHA && npm ci && npm run build && cp -r .next/static .next/standalone/.next/ && cp .env.production.local .next/standalone/ && pm2 reload chokprathan
-   # Docker: git checkout PREVIOUS_SHA && docker compose up -d --build
    ```
 5. ตรวจแล้วปิดโหมดปิดปรับปรุง: `rm /etc/nginx/maintenance.on`
 

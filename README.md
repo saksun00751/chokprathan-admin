@@ -51,21 +51,14 @@ Run it as a MariaDB administrator after replacing the database name and password
 The cut-over from the old back office (order, checks, rollback) is in
 [`docs/runbook-cutover.md`](docs/runbook-cutover.md). Follow it for the first deploy.
 
-**Ports.** The admin app listens on **3100** (Dockerfile `PORT`, `ecosystem.config.cjs`); the member app uses
+**Ports.** The admin app listens on **3100** (`ecosystem.config.cjs`); the member app uses
 3000, so both can run on one host. nginx (`deploy/nginx.conf`, `server_name admin.example.com`) proxies
 443 to it; its zone and upstream names are prefixed `admin_` so it can be added to the member's nginx.
 
 **Environment.** `cp .env.example .env.production.local` and set at least `DATABASE_URL` (the `chok_admin`
 user), `NEXT_PUBLIC_SITE_URL`, `TRUST_PROXY=1` and `SCHEDULER`. Never add AMB secrets.
 
-**Docker** (a host where nothing else binds 80/443):
-
-```sh
-docker compose up -d --build     # 2 app replicas + nginx; certificates in deploy/certs/
-docker compose ps                # both app containers "healthy"
-```
-
-**PM2** (for example on the member app's host, behind its nginx with the server blocks of `deploy/nginx.conf`
+**PM2**, behind nginx (for example the member app's nginx, with the server blocks of `deploy/nginx.conf`
 and upstream `127.0.0.1:3100`):
 
 ```sh
@@ -75,17 +68,17 @@ cp .env.production.local .next/standalone/
 pm2 start ecosystem.config.cjs   # name chokprathan-admin, 2 processes; later: pm2 reload chokprathan-admin
 ```
 
-**Database commands in production.** The runtime image has no `scripts/` or `tsx`: run `npm run db -- ...`
+**Database commands in production.** The standalone build has no `scripts/` or `tsx`: run `npm run db -- ...`
 from a checkout with `npm ci`, passing the URL in the environment (it wins over `.env.local`), e.g.
 `DATABASE_URL='mysql://...' npm run db -- migrate`. Migrations and `import-staff` run with a privileged
 migration user (runbook step 0).
 
 **Health check.** `GET /api/health` returns `{"ok":true,"db":"up","scheduler":"ok|stale"}` or 503 when the
-database is down; the Docker `HEALTHCHECK` uses it. `scheduler` reflects the `system_status` heartbeat
+database is down; use it for monitoring and load-balancer checks. `scheduler` reflects the `system_status` heartbeat
 row, which the member app writes too; to see which app holds the work run
 `SELECT IS_USED_LOCK('chokprathan-admin:scheduler')`.
 
-**Scheduler and replicas.** Run 2 replicas (compose `deploy.replicas: 2`, PM2 `instances: 2`): every
+**Scheduler and replicas.** Run 2 replicas (PM2 `instances: 2`): every
 process runs the timer, the MariaDB named lock `chokprathan-admin:scheduler` lets one do the work and the
 other takes over if it dies. `SCHEDULER=off` turns the work off on every process of this app (restart to
 apply). Keep it off until the switch so the old app's scheduler is the only one running; after the switch
