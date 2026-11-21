@@ -8,9 +8,12 @@
  *      (member repo: DATABASE_URL=mysql://root:...@127.0.0.1/lotto npm run db -- migrate),
  *      then this app's (DATABASE_URL=mysql://root:...@127.0.0.1/lotto npm run db -- migrate).
  *   2. Apply the grants as root: mariadb -u root -p < scripts/grants.sql   (database name `lotto`).
- *   3. ISOLATION_MEMBER_URL=mysql://chok_member:CHANGE-ME-MEMBER@127.0.0.1/lotto \
+ *   3. TEST_DATABASE_URL= \
+ *      ISOLATION_MEMBER_URL=mysql://chok_member:CHANGE-ME-MEMBER@127.0.0.1/lotto \
  *      ISOLATION_ADMIN_URL=mysql://chok_admin:CHANGE-ME-ADMIN@127.0.0.1/lotto \
  *      npx vitest run src/server/db/isolation.test.ts
+ *      (the empty TEST_DATABASE_URL matters: otherwise vitest.config reads it from .env* files and the
+ *      global setup drops and re-migrates the app tables of that test database before this file runs)
  * Every positive check touches no row (WHERE id = -1 and similar).
  */
 import mysql, { type Connection } from "mysql2/promise";
