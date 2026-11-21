@@ -264,7 +264,7 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
                     {lo.customTiers}
                   </label>
                   {custom ? (
-                    <TierEditor profile={custom} baseRate100={base} onChange={(p) => setCustomRisk({ ...customRisk, [code]: p })} />
+                    <TierEditor profile={custom} baseRate100={base} onChange={(p) => setCustomRisk({ ...customRisk, [code]: p })} betType={code} />
                   ) : (
                     <p className="text-xs text-ink-3">
                       {lo.defaultTiers}{" "}

@@ -13,11 +13,14 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import type { BetLimits } from "@/server/catalog";
 import { saveRiskSettingsAction } from "@/server/actions/admin";
+import { defaultsSummary, equalsDefaults, type CardValues } from "./risk-explain";
 import { TierEditor } from "./tier-editor";
 
 const toRate100 = (s: string) => Math.round(parseFloat(s) * 100);
 
-export function RiskEditor({ rates, risk, limits }: { rates: Record<BetTypeCode, number>; risk: Record<BetTypeCode, RiskProfile>; limits: BetLimits }) {
+type RiskSettings = { rates: Record<BetTypeCode, number>; risk: Record<BetTypeCode, RiskProfile>; limits: BetLimits };
+
+export function RiskEditor({ rates, risk, limits, defaults }: RiskSettings & { defaults: RiskSettings }) {
   const { t } = useI18n();
   const rk = t.admin.ops.risk;
   const k = t.admin.shell.confirm;
@@ -31,6 +34,13 @@ export function RiskEditor({ rates, risk, limits }: { rates: Record<BetTypeCode,
   );
   const [profiles, setProfiles] = useState(risk);
   const [lim, setLim] = useState(limits);
+  const defaultCard = (c: BetTypeCode): CardValues => ({ rate100: defaults.rates[c], maxPerNumber: defaults.limits.maxPerNumber[c], profile: defaults.risk[c] });
+  /** Put one card back to the system defaults, locally: nothing is saved until the form is submitted. */
+  const resetCard = (c: BetTypeCode) => {
+    setRateText({ ...rateText, [c]: formatRate(defaults.rates[c]) });
+    setLim({ ...lim, maxPerNumber: { ...lim.maxPerNumber, [c]: defaults.limits.maxPerNumber[c] } });
+    setProfiles({ ...profiles, [c]: structuredClone(defaults.risk[c]) });
+  };
   const invalid = BET_TYPE_ORDER.some((c) => validateProfile(profiles[c], t.admin.ops.tiers.problems).length > 0 || !(toRate100(rateText[c]) > 0));
 
   return (
@@ -99,7 +109,9 @@ export function RiskEditor({ rates, risk, limits }: { rates: Record<BetTypeCode,
       </section>
 
       <ul className="flex flex-col gap-3">
-        {BET_TYPE_ORDER.map((code) => (
+        {BET_TYPE_ORDER.map((code) => {
+          const isDefault = equalsDefaults({ rate100: toRate100(rateText[code]), maxPerNumber: lim.maxPerNumber[code], profile: profiles[code] }, defaultCard(code));
+          return (
           <li key={code} className="grid grid-cols-1 gap-4 rounded-card border border-line bg-surface p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
             <div className="flex flex-col gap-3">
               <h3 className="font-semibold">{t.lotto.betTypes[code].label}</h3>
@@ -110,7 +122,11 @@ export function RiskEditor({ rates, risk, limits }: { rates: Record<BetTypeCode,
                   inputMode="decimal"
                   onChange={(e) => setRateText({ ...rateText, [code]: e.target.value.replace(/[^\d.]/g, "") })}
                   className="tnum h-10 rounded-control border border-line-strong px-3 text-right font-semibold"
+                  aria-describedby={`rate-help-${code}`}
                 />
+                <span id={`rate-help-${code}`} className="text-xs text-ink-3">
+                  {rk.rateHelp}
+                </span>
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs text-ink-3">{rk.maxPerNumber}</span>
@@ -119,15 +135,46 @@ export function RiskEditor({ rates, risk, limits }: { rates: Record<BetTypeCode,
                   value={String(lim.maxPerNumber[code])}
                   onChange={(e) => setLim({ ...lim, maxPerNumber: { ...lim.maxPerNumber, [code]: Number(e.target.value.replace(/\D/g, "")) || 0 } })}
                   className="tnum h-10 rounded-control border border-line-strong px-3 text-right"
+                  aria-describedby={`max-help-${code}`}
                 />
+                <span id={`max-help-${code}`} className="text-xs text-ink-3">
+                  {rk.maxPerNumberHelp}
+                </span>
               </label>
+              <div className="flex flex-col items-start gap-1 border-t border-line pt-3">
+                <p className="text-xs text-ink-3">
+                  {rk.defaultsLabel}{" "}
+                  <span className="tnum">
+                    {defaultsSummary(defaultCard(code), { summary: rk.defaultsSummary, tiers: rk.defaultsTiers, close: rk.defaultsClose, off: rk.defaultsOff }, formatNumber)}
+                  </span>
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => resetCard(code)}
+                  disabled={isDefault}
+                  title={isDefault ? rk.alreadyDefault : rk.resetHint}
+                  aria-describedby={`reset-help-${code}`}
+                >
+                  {rk.resetDefaults}
+                </Button>
+                <span id={`reset-help-${code}`} className="text-xs text-ink-3">
+                  {isDefault ? rk.alreadyDefault : rk.resetHint}
+                </span>
+              </div>
             </div>
             <div>
               <p className="mb-2 text-xs text-ink-3">{rk.tierNote}</p>
-              <TierEditor profile={profiles[code]} baseRate100={toRate100(rateText[code]) || 0} onChange={(p) => setProfiles({ ...profiles, [code]: p })} />
+              <TierEditor
+                profile={profiles[code]}
+                baseRate100={toRate100(rateText[code]) || 0}
+                onChange={(p) => setProfiles({ ...profiles, [code]: p })}
+                betType={code}
+              />
             </div>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       <div className="sticky bottom-0 -mx-4 flex items-center justify-end gap-3 border-t border-line bg-surface/95 px-4 py-3 lg:-mx-8 lg:px-8">
