@@ -188,6 +188,8 @@ password=MIGRATE_PASS
    cd "$MEMBER_DIR" && DATABASE_URL="$SCRATCH_ROOT_URL" npm run db -- migrate
    cd "$ADMIN_DIR" && DATABASE_URL="$SCRATCH_ROOT_URL" npm run db -- migrate
    mariadb -h 127.0.0.1 -u root -p < scripts/grants.sql      # ชื่อฐาน lotto, รหัสผ่าน CHANGE-ME-* ตามไฟล์
+   # TEST_DATABASE_URL ว่างไว้เสมอ: ไม่งั้น vitest อ่านค่าจากไฟล์ .env* แล้ว global setup จะ drop/migrate ตารางของฐานทดสอบนั้นก่อน
+   TEST_DATABASE_URL= \
    ISOLATION_MEMBER_URL='mysql://chok_member:CHANGE-ME-MEMBER@127.0.0.1:3306/lotto' \
    ISOLATION_ADMIN_URL='mysql://chok_admin:CHANGE-ME-ADMIN@127.0.0.1:3306/lotto' \
      npx vitest run src/server/db/isolation.test.ts
@@ -203,7 +205,10 @@ password=MIGRATE_PASS
    ```
 
 **Verify:** `curl -fsS https://admin.example.com/api/health` ได้ `{"ok":true,"db":"up",...}`; `SHOW GRANTS` ตรงกับ `grants.sql`;
-isolation test ผ่านบนเซิร์ฟเวอร์ทิ้งได้; `SELECT IS_USED_LOCK('chokprathan-admin:scheduler')` ได้ `NULL` (admin ยังไม่รัน scheduler)
+isolation test ผ่านบนเซิร์ฟเวอร์ทิ้งได้; แถว `system_status.name='scheduler'` มี `value.host` เป็นเครื่อง member เท่านั้น (admin ยังไม่รัน scheduler)
+(**อย่าใช้ `IS_USED_LOCK(...)` ตรวจว่า scheduler รันอยู่หรือไม่:** ทั้งสองแอปถือ named lock เฉพาะระหว่าง tick ซึ่งกินเวลาไม่กี่มิลลิวินาที
+ทุก 20 วินาที แล้วปล่อย ผลจึงเป็น `NULL` แทบทุกครั้งที่ตรวจ ไม่ว่า scheduler จะรันหรือไม่ ให้ดู heartbeat ใน `system_status` แทน:
+`value.host`/`value.pid` คือ process ที่ทำ tick ล่าสุด และ `updated_at` ต้องไม่เก่ากว่า ~40 วินาที)
 (หมายเหตุ: ค่า `scheduler` ใน `/api/health` ของ admin อ่านแถว `system_status.name='scheduler'` ระหว่างนี้แถวนั้นเขียนโดย
 member build เดิม (ก่อน Switch) จึงสะท้อน scheduler ของ member; member build ของ cut-over เขียนแถวของตัวเอง `member_scheduler`)
 
@@ -219,11 +224,12 @@ member build เดิม (ก่อน Switch) จึงสะท้อน sche
    `chokprathan:scheduler` / `chokprathan-admin:scheduler` จึงไม่กันกันเอง ถ้าเปิดทั้งคู่ งานรอบ/settlement จะรันซ้อน)
    ตรวจเป็นระยะ:
    ```bash
-   mariadb "$DB" -e "SELECT IS_USED_LOCK('chokprathan-admin:scheduler') AS admin_lock, IS_USED_LOCK('chokprathan:scheduler') AS member_lock;"
+   mariadb "$DB" -e "SELECT name, \`value\`, FROM_UNIXTIME(updated_at/1000) AS at, NOW() AS now FROM system_status WHERE name = 'scheduler';"
    ```
 4. เก็บปัญหาที่พบเป็นรายการ แก้และ deploy admin ซ้ำได้ตามต้องการ (ยัง `SCHEDULER=off`)
 
-**Verify:** `admin_lock` เป็น `NULL` และ `member_lock` ไม่เป็น `NULL` ทุกครั้งที่ตรวจ; ทีมยืนยันว่าทุกหน้าที่ใช้ประจำทำงาน; ไม่มีการแก้ข้อมูลพนักงานที่ admin
+**Verify:** ทุกครั้งที่ตรวจ แถว `scheduler` มี `value.host` เป็นเครื่อง member (ไม่เคยเป็นเครื่อง admin) และ `at` ไม่เก่ากว่า ~40 วินาที;
+ทีมยืนยันว่าทุกหน้าที่ใช้ประจำทำงาน; ไม่มีการแก้ข้อมูลพนักงานที่ admin
 
 ---
 
@@ -256,7 +262,7 @@ member build เดิม (ก่อน Switch) จึงสะท้อน sche
    ```bash
    cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff --refresh
    ```
-5. เปิด scheduler ฝั่ง admin และรีสตาร์ต (2 replica: ตัวหนึ่งถือ lock อีกตัวสำรอง):
+5. เปิด scheduler ฝั่ง admin และรีสตาร์ต (2 replica: ทั้งสองตัวจับเวลา tick แต่ named lock ให้ทำงานได้ทีละตัวต่อ tick ถ้าตัวหนึ่งล่ม อีกตัวทำต่อเอง):
    ```bash
    cd "$ADMIN_DIR" && sed -i.bak 's/^SCHEDULER=.*/SCHEDULER=on/' .env.production.local && grep '^SCHEDULER=' .env.production.local
    cp .env.production.local .next/standalone/ && pm2 reload chokprathan-admin
@@ -277,12 +283,12 @@ member build เดิม (ก่อน Switch) จึงสะท้อน sche
      ```bash
      mariadb "$DB" -e "SELECT * FROM employee_auth_log ORDER BY id DESC LIMIT 5;"
      ```
-   - [ ] scheduler ของ admin ถือ lock และ heartbeat มาจากเครื่อง admin (หลัง Switch แถว `scheduler` เป็นของ admin เท่านั้น
+   - [ ] heartbeat ของ scheduler มาจากเครื่อง admin (หลัง Switch แถว `scheduler` เป็นของ admin เท่านั้น
      member build ใหม่เขียนแถวของตัวเอง `member_scheduler` ซึ่ง `/api/health` ของ member อ่าน):
      ```bash
-     mariadb "$DB" -e "SELECT IS_USED_LOCK('chokprathan-admin:scheduler') AS admin_lock; SELECT name, \`value\`, updated_at FROM system_status WHERE name IN ('scheduler', 'member_scheduler');"
+     mariadb "$DB" -e "SELECT name, \`value\`, FROM_UNIXTIME(updated_at/1000) AS at, NOW() AS now FROM system_status WHERE name IN ('scheduler', 'member_scheduler');"
      ```
-     `admin_lock` ไม่เป็น `NULL`; แถว `scheduler`: `value.host` เป็น hostname ของ container/เครื่อง admin, `updated_at` ไม่เกิน ~20 วินาทีก่อน;
+     แถว `scheduler`: `value.host` เป็น hostname ของ container/เครื่อง admin, `at` ไม่เกิน ~40 วินาทีก่อน (ตรวจซ้ำหลัง 20 วินาทีต้องขยับ);
      แถว `member_scheduler` มี `updated_at` ใหม่ (scheduler ของ member ยังเดินงานของตัวเอง)
    - [ ] รอบปิดและจ่ายรางวัลได้ (ดู tick หนึ่งรอบ ~20 วินาที): เลือกรอบออกผลอัตโนมัติ (ยี่กี) ที่ใกล้ปิด
      ```bash
@@ -351,7 +357,7 @@ member build เดิม (ก่อน Switch) จึงสะท้อน sche
 - ข้อมูลธุรกิจ (โพย เงิน รอบ) ใช้ตารางร่วม ไม่หายและไม่ต้องย้อน
 - หลัง contract (ขั้น 6) ย้อนได้ทางเดียวคือกู้จาก backup
 
-**Verify:** `SELECT IS_USED_LOCK('chokprathan:scheduler')` ไม่เป็น `NULL` และ `IS_USED_LOCK('chokprathan-admin:scheduler')` เป็น `NULL`;
+**Verify:** แถว `system_status.name='scheduler'` มี `value.host` เป็นเครื่อง member และ `updated_at` ใหม่ (ไม่เกิน ~40 วินาที, ขยับทุก ~20 วินาที);
 `SELECT MAX(version) FROM schema_migrations` เป็น `8`; พนักงานเข้า `/console` ของแอปเดิมได้; `https://example.com/api/health` ได้ `ok`
 
 ---
@@ -424,7 +430,7 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 `staff_columns`, `staff_roles_table`, `non_members` เป็น `0` ทั้งหมด; `kept_columns` เป็น `2`; `import-staff` พิมพ์
 `employee_roles: 0, employees: 0` โดยไม่ error; member `npm run db -- status` ได้ schema version 9; พนักงานเข้า admin ได้
 และหน้ารายชื่อสมาชิกของ admin แสดงสมาชิกครบ, สมาชิกเข้า member ได้, `/api/health` ทั้งสองแอป `ok`,
-`SELECT IS_USED_LOCK('chokprathan-admin:scheduler')` ไม่เป็น `NULL`
+แถว `system_status.name='scheduler'` มี `value.host` เป็นเครื่อง admin และ `updated_at` ไม่เกิน ~40 วินาที
 
 ---
 
@@ -441,7 +447,8 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
    (การรับแทงยังถูกจำกัดด้วยเวลาปิดรอบ) ให้รัน admin 2 replica เสมอ และห้ามเปิด scheduler แบบเดิมใน member อีก
    `simulateCrowd` (โหลดจำลองบน staging) ไม่ย้ายมา admin
 6. **`/api/health` field `scheduler`** ของ admin อ่านแถว `system_status.name='scheduler'` (เขียนโดย admin) ส่วนของ member
-   อ่านแถว `member_scheduler` (เขียนโดย member) ใช้ `IS_USED_LOCK` ข้างบนถ้าต้องรู้ว่า process ไหนถือ lock
+   อ่านแถว `member_scheduler` (เขียนโดย member) `value.host`/`value.pid` ของแต่ละแถวบอกว่า process ไหนทำ tick ล่าสุด
+   (`IS_USED_LOCK` เห็น lock เฉพาะช่วงไม่กี่มิลลิวินาทีที่ tick กำลังทำงาน จึงใช้ตรวจไม่ได้)
 7. **ความลับ AMB** อยู่ที่ member เท่านั้น
 8. **Migration ของ member** รันด้วย `MIGRATE_URL` แยกเสมอ (member รันด้วย `DB_AUTO_MIGRATE=false`) และหลังเพิ่มตารางใหม่ใน member
    ต้องเพิ่ม GRANT ให้ `chok_member` (`node scripts/check-grants.mjs --member "$MEMBER_DIR"` จะฟ้องถ้าขาด)
