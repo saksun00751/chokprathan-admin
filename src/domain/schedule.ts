@@ -29,6 +29,14 @@ export function closesForDay(schedule: Schedule, key: string): number[] {
   }
 }
 
+/** When rounds of Bangkok day `key` open, if the schedule sets its own opening time; otherwise null. */
+export function opensOnDay(schedule: Schedule, key: string): number | null {
+  if (!schedule.opens) return null;
+  const { y, m, d } = parseDayKey(key);
+  const t = parseHM(schedule.opens);
+  return bkkMs(y, m, d, t.h, t.m);
+}
+
 /** The earliest scheduled close strictly after `afterMs` (searching 40 days ahead), or null. */
 export function nextClose(schedule: Schedule, afterMs: number): number | null {
   const today = dayKey(afterMs);

@@ -200,11 +200,14 @@ export async function saveRiskSettingsAction(input: {
 /* ---------- lotto types ---------- */
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-const scheduleSchema = z.union([
-  z.object({ kind: z.literal("weekly"), days: z.array(z.number().int().min(0).max(6)).min(1).max(7), close: hhmm }),
-  z.object({ kind: z.literal("monthly"), days: z.array(z.number().int().min(1).max(31)).min(1).max(31), close: hhmm }),
-  z.object({ kind: z.literal("interval"), firstClose: hhmm, everyMin: z.number().int().min(5).max(720), count: z.number().int().min(1).max(288) }),
-]);
+const scheduleSchema = z
+  .union([
+    z.object({ kind: z.literal("weekly"), days: z.array(z.number().int().min(0).max(6)).min(1).max(7), close: hhmm, opens: hhmm.optional() }),
+    z.object({ kind: z.literal("monthly"), days: z.array(z.number().int().min(1).max(31)).min(1).max(31), close: hhmm, opens: hhmm.optional() }),
+    z.object({ kind: z.literal("interval"), firstClose: hhmm, everyMin: z.number().int().min(5).max(720), count: z.number().int().min(1).max(288), opens: hhmm.optional() }),
+  ])
+  // An own opening time is on the round's day, so it must come before the (first) close; "HH:MM" compares as text.
+  .refine((s) => !s.opens || s.opens < (s.kind === "interval" ? s.firstClose : s.close));
 
 const lottoSchema = z.object({
   name: z.string().trim().min(2).max(60),

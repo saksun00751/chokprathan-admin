@@ -3,7 +3,7 @@ import { settleGuesses } from "./activities";
 import { errorsT, serverI18n } from "@/i18n/server";
 import { randomInt } from "node:crypto";
 import { deriveResult, type ResultInput } from "@/domain/match";
-import { closesForDay, nextClose, previousClose } from "@/domain/schedule";
+import { closesForDay, nextClose, opensOnDay, previousClose } from "@/domain/schedule";
 import { DAY, addDays, dayKey, formatThaiDate } from "@/domain/time";
 import type { ResultFormat, RoundResult } from "@/domain/types";
 import { invalidate } from "@/server/cache";
@@ -90,7 +90,7 @@ function plannedRounds(lottos: Lotto[], now: number, daysBack: number, daysAhead
       for (const key of keys) {
         const closes = closesForDay(s, key);
         if (closes.length === 0) continue;
-        const opensAt = previousClose(s, closes[0]) ?? closes[0] - s.everyMin * 60_000;
+        const opensAt = opensOnDay(s, key) ?? previousClose(s, closes[0]) ?? closes[0] - s.everyMin * 60_000;
         closes.forEach((c, i) => out.push({ lotto, roundNo: i + 1, key, opensAt, closesAt: c }));
       }
       continue;
@@ -102,7 +102,7 @@ function plannedRounds(lottos: Lotto[], now: number, daysBack: number, daysAhead
       if (upcoming !== null) closes.push({ key: dayKey(upcoming), c: upcoming });
     }
     closes.forEach(({ key, c }, i) => {
-      const opensAt = i > 0 ? closes[i - 1].c : (previousClose(s, c) ?? c - DAY);
+      const opensAt = opensOnDay(s, key) ?? (i > 0 ? closes[i - 1].c : (previousClose(s, c) ?? c - DAY));
       out.push({ lotto, roundNo: null, key, opensAt, closesAt: c });
     });
   }

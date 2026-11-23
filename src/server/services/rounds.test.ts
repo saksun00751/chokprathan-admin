@@ -107,4 +107,15 @@ describe.skipIf(!hasTestDb)("ensureRounds on MariaDB", () => {
     const old = await q1<{ status: string }>("SELECT status FROM rounds WHERE lotto_id = ? AND closes_at = ?", laos, bkkMs(2026, 11, 4, 20, 15));
     expect(old?.status).toBe("scheduled");
   });
+  test("a schedule with its own opening time opens rounds then, and reconcile moves existing ones", async () => {
+    await ensureRounds(now);
+    const laos = (await q1<{ id: number }>("SELECT id FROM lottos WHERE slug = 'laos-pattana'"))!.id;
+    const open = () => q1<{ opens_at: number }>("SELECT opens_at FROM rounds WHERE lotto_id = ? AND closes_at = ?", laos, bkkMs(2026, 11, 4, 20, 15));
+    expect((await open())?.opens_at).toBe(bkkMs(2026, 11, 2, 20, 15)); // default: previous draw's close
+    await run("UPDATE lottos SET schedule = ? WHERE id = ?", json.str({ kind: "weekly", days: [1, 3, 5], close: "20:15", opens: "00:00" }), laos);
+    invalidate("lottos");
+    const out = await reconcileRounds(laos, null, now);
+    expect(out.updated).toBeGreaterThan(0);
+    expect((await open())?.opens_at).toBe(bkkMs(2026, 11, 4, 0, 0)); // midnight of the draw day
+  });
 });

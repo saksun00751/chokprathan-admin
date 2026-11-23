@@ -20,9 +20,10 @@ import { TierEditor } from "./tier-editor";
 
 function scheduleText(s: Schedule, t: Dict) {
   const lo = t.admin.ops.lottos;
-  if (s.kind === "interval") return fmt(lo.interval, { every: s.everyMin, count: s.count, first: s.firstClose });
-  if (s.kind === "monthly") return fmt(lo.monthly, { days: s.days.join(", "), close: s.close });
-  return fmt(lo.weekly, { days: s.days.length === 7 ? lo.everyDay : s.days.map((d) => t.lotto.weekdays[d]).join(" "), close: s.close });
+  const opens = s.opens ? ` · ${fmt(lo.opensShort, { time: s.opens })}` : "";
+  if (s.kind === "interval") return fmt(lo.interval, { every: s.everyMin, count: s.count, first: s.firstClose }) + opens;
+  if (s.kind === "monthly") return fmt(lo.monthly, { days: s.days.join(", "), close: s.close }) + opens;
+  return fmt(lo.weekly, { days: s.days.length === 7 ? lo.everyDay : s.days.map((d) => t.lotto.weekdays[d]).join(" "), close: s.close }) + opens;
 }
 
 export function LottoList({ lottos, rates, risk }: { lottos: Lotto[]; rates: Record<BetTypeCode, number>; risk: Record<BetTypeCode, RiskProfile> }) {
@@ -180,7 +181,7 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
                   key={kind}
                   type="button"
                   onClick={() =>
-                    setSchedule(kind === "weekly" ? { kind, days: [1, 2, 3, 4, 5], close: schedule.close } : { kind, days: [1, 16], close: schedule.close })
+                    setSchedule(kind === "weekly" ? { kind, days: [1, 2, 3, 4, 5], close: schedule.close, opens: schedule.opens } : { kind, days: [1, 16], close: schedule.close, opens: schedule.opens })
                   }
                   className={cn("h-9 rounded-full px-3 font-medium", schedule.kind === kind ? "bg-ink text-white" : "bg-surface text-ink-2")}
                 >
@@ -223,6 +224,19 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
             <TextField label={lo.closeTime} value={schedule.close} onChange={(v) => setSchedule({ ...schedule, close: v })} type="time" />
           </div>
         )}
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={schedule.opens !== undefined}
+              onChange={(e) => setSchedule(e.target.checked ? { ...schedule, opens: "00:00" } : { ...schedule, opens: undefined })}
+              className="size-4 accent-[var(--color-brand)]"
+            />
+            {lo.opensCustom}
+          </label>
+          {schedule.opens !== undefined && <TextField label={lo.opensTime} value={schedule.opens} onChange={(v) => setSchedule({ ...schedule, opens: v })} type="time" />}
+        </div>
+        <p className="mt-1 text-xs text-ink-3">{lo.opensNote}</p>
         <p className="mt-3 text-xs text-ink-3">{lo.scheduleNote}</p>
       </fieldset>
 
