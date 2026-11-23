@@ -32,6 +32,9 @@ test("phaseOf follows the clock and the stored status", () => {
 describe.skipIf(!hasTestDb)("ensureRounds on MariaDB", () => {
   beforeEach(async () => {
     await resetDb();
+    // resetDb only empties the admin's own tables; lottos and rounds belong to the member schema.
+    await run("DELETE FROM rounds");
+    await run("DELETE FROM lottos");
     await addLotto("yiki", "หวยยี่กี", "yiki", "standard", { kind: "interval", firstClose: "06:00", everyMin: 15, count: 88 }, 2);
     await addLotto("laos-pattana", "หวยลาวพัฒนา", "foreign", "laos4", { kind: "weekly", days: [1, 3, 5], close: "20:15" }, 25);
   });
