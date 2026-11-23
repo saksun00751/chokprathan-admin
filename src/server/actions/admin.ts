@@ -31,10 +31,10 @@ import { deleteBanner, moveBanner, saveBanner, setBannerImage } from "@/server/s
 import { adjustBankAccount, archiveBankAccount, saveBankAccount, type BankAccountInput, type BankError } from "@/server/services/banks";
 import { approveDeposit, approveWithdrawal, rejectDeposit, rejectWithdrawal } from "@/server/services/finance";
 import { closeMember, reopenMember, updateMember, type MemberEdit, type MemberEditError } from "@/server/services/members";
-import { invalidateLottos, listLottos } from "@/server/services/lottos";
+import { getLotto, invalidateLottos, listLottos } from "@/server/services/lottos";
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
-import { cancelRound, setResult } from "@/server/services/rounds";
+import { cancelRound, reconcileRounds, setResult } from "@/server/services/rounds";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
 import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
 import { InsufficientFundsError, move } from "@/server/services/wallet";
@@ -230,6 +230,7 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
     const problems = validateProfile(p, g.e.risk);
     if (problems.length) return { ok: false, error: `${code}: ${problems[0]}` };
   }
+  const before = await getLotto(lottoId);
   const changed = (
     await run(
       `UPDATE lottos SET name = ?, short_name = ?, enabled = ?, auto_result = ?, result_delay_min = ?, schedule = ?, rates = ?, risk = ?, updated_at = ? WHERE id = ?`,
@@ -248,6 +249,10 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
   if (!changed) return { ok: false, error: g.e.admin.lottoNotFound };
   invalidateLottos();
   await audit(g.viewer.id, "lotto.update", `lotto:${lottoId}`, v, Date.now(), g.ip);
+  // A new schedule or draw delay must reach rounds already created (only those without bills or guesses).
+  if (!before || json.str(before.schedule) !== json.str(v.schedule) || before.resultDelayMin !== v.resultDelayMin) {
+    await reconcileRounds(lottoId, g.viewer.id).catch((error) => console.error("[lottos] round reconcile failed:", error instanceof Error ? error.message : error));
+  }
   return done(fmt(g.e.admin.lottoSaved, { name: v.shortName }));
 }
 

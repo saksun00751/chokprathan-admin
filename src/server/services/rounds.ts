@@ -139,7 +139,54 @@ export async function ensureRounds(now: number, { daysBack = 1, daysAhead = 1 } 
   return inserted;
 }
 
-export type SetResultOutcome = { ok: true; result: RoundResult } | { ok: false; error: string };
+/**
+ * After a lotto's schedule or result delay changed, bring its future rounds in line with the new plan.
+ * Only rounds nobody has touched are changed: still scheduled, closing in the future, no bills and no
+ * point guesses. Those that match a planned close get their open/draw times (and round number) updated;
+ * those the new schedule no longer has are cancelled (admin may not DELETE rounds, and a cancelled
+ * round with no bills refunds nothing). Rounds with bills or guesses keep their original times.
+ * Missing rounds of the new plan are created by the `ensureRounds` call at the end.
+ */
+export async function reconcileRounds(lottoId: number, actorId: number | null, now = Date.now()): Promise<{ updated: number; cancelled: number; created: number }> {
+  const lotto = await getLotto(lottoId);
+  if (!lotto) return { updated: 0, cancelled: 0, created: 0 };
+  const plan = new Map(plannedRounds([lotto], now, 1, 1).map((p) => [p.closesAt, p]));
+  const untouched = await q<{ id: number; closes_at: number; round_no: number | null; day_key: string; opens_at: number; draw_at: number }>(
+    `SELECT r.id, r.closes_at, r.round_no, r.day_key, r.opens_at, r.draw_at FROM rounds r
+     WHERE r.lotto_id = ? AND r.status = 'scheduled' AND r.closes_at > ?
+       AND NOT EXISTS (SELECT 1 FROM bills b WHERE b.round_id = r.id)
+       AND NOT EXISTS (SELECT 1 FROM point_guesses g WHERE g.round_id = r.id)`,
+    lottoId,
+    now,
+  );
+  let updated = 0;
+  let cancelled = 0;
+  for (const r of untouched) {
+    const want = plan.get(r.closes_at);
+    if (!want) {
+      if ((await cancelRound(r.id, actorId, now)).ok) cancelled++;
+      continue;
+    }
+    const drawAt = want.closesAt + lotto.resultDelayMin * 60_000;
+    if (want.opensAt === r.opens_at && drawAt === r.draw_at && want.roundNo === r.round_no && want.key === r.day_key) continue;
+    // Re-check "no bills" in the UPDATE itself: a bill may have landed since the SELECT.
+    const { changes } = await run(
+      `UPDATE rounds SET opens_at = ?, draw_at = ?, round_no = ?, day_key = ?
+       WHERE id = ? AND status = 'scheduled' AND NOT EXISTS (SELECT 1 FROM bills b WHERE b.round_id = rounds.id)`,
+      want.opensAt,
+      drawAt,
+      want.roundNo,
+      want.key,
+      r.id,
+    );
+    updated += changes;
+  }
+  const created = await ensureRounds(now);
+  if (updated > 0 || cancelled > 0) invalidate("lobby", "results");
+  return { updated, cancelled, created };
+}
+
+export type SetResultOutcome ={ ok: true; result: RoundResult } | { ok: false; error: string };
 
 function invalidateRoundViews(roundId: number) {
   const keys = ["lobby", "results", `limits:${roundId}`];

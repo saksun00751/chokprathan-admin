@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { bkkMs } from "@/domain/time";
+import { invalidate } from "@/server/cache";
 import { json, q, q1, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
-import { ensureRounds, phaseOf } from "./rounds";
+import { ensureRounds, phaseOf, reconcileRounds } from "./rounds";
 
 const now = bkkMs(2026, 11, 4, 12, 0); // Wednesday
 
@@ -73,5 +74,34 @@ describe.skipIf(!hasTestDb)("ensureRounds on MariaDB", () => {
       now,
     );
     expect(gov).toEqual({ opens_at: bkkMs(2026, 11, 1, 15, 10), closes_at: bkkMs(2026, 11, 16, 15, 10) });
+  });
+  test("reconcileRounds moves untouched future rounds to a new schedule and delay", async () => {
+    await ensureRounds(now);
+    const laos = (await q1<{ id: number }>("SELECT id FROM lottos WHERE slug = 'laos-pattana'"))!.id;
+    await run("UPDATE lottos SET schedule = ?, result_delay_min = 10 WHERE id = ?", json.str({ kind: "weekly", days: [1, 3, 5], close: "21:00" }), laos);
+    invalidate("lottos");
+    const out = await reconcileRounds(laos, null, now);
+    expect(out.cancelled).toBeGreaterThan(0);
+    const live = await q<{ closes_at: number; draw_at: number }>(
+      "SELECT closes_at, draw_at FROM rounds WHERE lotto_id = ? AND status = 'scheduled' AND closes_at > ?",
+      laos,
+      now,
+    );
+    expect(live.length).toBeGreaterThan(0);
+    for (const r of live) expect(r.draw_at).toBe(r.closes_at + 10 * 60_000);
+    expect(live.some((r) => r.closes_at === bkkMs(2026, 11, 4, 21, 0))).toBe(true);
+    expect(live.some((r) => r.closes_at === bkkMs(2026, 11, 4, 20, 15))).toBe(false);
+    expect((await reconcileRounds(laos, null, now)).cancelled).toBe(0);
+  });
+
+  test("reconcileRounds leaves rounds that already closed alone", async () => {
+    await ensureRounds(now);
+    const laos = (await q1<{ id: number }>("SELECT id FROM lottos WHERE slug = 'laos-pattana'"))!.id;
+    const later = bkkMs(2026, 11, 4, 21, 0); // after the 20:15 close
+    await run("UPDATE lottos SET schedule = ? WHERE id = ?", json.str({ kind: "weekly", days: [1, 3, 5], close: "22:00" }), laos);
+    invalidate("lottos");
+    await reconcileRounds(laos, null, later);
+    const old = await q1<{ status: string }>("SELECT status FROM rounds WHERE lotto_id = ? AND closes_at = ?", laos, bkkMs(2026, 11, 4, 20, 15));
+    expect(old?.status).toBe("scheduled");
   });
 });
