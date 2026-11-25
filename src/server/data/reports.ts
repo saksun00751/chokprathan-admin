@@ -7,7 +7,7 @@ import { groupName } from "@/domain/lotto-groups";
 import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
-import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx, AFFILIATE_TYPES, CASHBACK_TYPES } from "@/server/stats/derive";
+import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx, AFFILIATE_TYPES, CASHBACK_TYPES, rewardsEarned } from "@/server/stats/derive";
 import { rangeStats, roundStats, type RangeStats } from "@/server/stats/store";
 import { can, type Employee } from "@/server/services/employee-auth";
 import { listGroups } from "@/server/services/lotto-groups";
@@ -374,9 +374,9 @@ async function rewards(r: DateRange, s: RangeStats, R: ReportsDict): Promise<Rep
       const d = x ? [x] : [];
       return {
         day: k.startMs,
-        cashbackEarn: sumTx(d, CASHBACK_TYPES, REWARD_WALLETS),
+        cashbackEarn: rewardsEarned(d).cashback,
         cashbackClaim: -sumTx(d, ["cashback_claim"], REWARD_WALLETS),
-        affEarn: sumTx(d, AFFILIATE_TYPES, REWARD_WALLETS),
+        affEarn: rewardsEarned(d).affiliate,
         affClaim: -sumTx(d, ["aff_transfer"], REWARD_WALLETS),
       };
     }),

@@ -5,6 +5,7 @@ import { changedDays } from "@/server/stats/build";
 import { dayOf } from "@/server/stats/derive";
 import { DAY } from "chokprathan-core/rules/time";
 import { hasTestDb, resetDb } from "@/test/db";
+import { checkResult } from "./results";
 import { applyCorrection, checkCorrection, confirmCorrection, rejectCorrection, requestCorrection } from "./correction";
 import { approveDeposit, approveWithdrawal } from "./finance";
 import { resumeSettlements } from "./rounds";
@@ -192,6 +193,47 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     expect(await confirmCorrection(round, LOSE, APPROVER, later)).toEqual({ ok: true });
     expect(await q1("SELECT settled_at FROM bills WHERE code = 'CPM'")).toEqual({ settled_at: 3 * DAY });
     expect((await changedDays(later - 1)).sort((a, b) => a - b)).toEqual([dayOf(1), dayOf(3 * DAY)]);
+  });
+
+  test("cannot be probed through the ordinary result check", async () => {
+    await bill("CPN", member, "25");
+    await pay();
+    await requestCorrection(round, { kind: "correction", input: LOSE }, "wrong result", ASKER, now);
+    for (const guess of [WIN, LOSE]) {
+      const r = await checkResult(round, guess, APPROVER, now);
+      expect(r).toMatchObject({ ok: false, reason: "refused" });
+      expect(r).not.toHaveProperty("fields");
+    }
+    expect(await q("SELECT 1 FROM audit_log WHERE action = 'round.result.mismatch'")).toEqual([]);
+  });
+
+  test("voiding gives back only the turnover the payout really used", async () => {
+    await bill("CPO", member, "11");
+    await pay();
+    await correct("void");
+    expect(await q1("SELECT turnover_required FROM users WHERE id = ?", member)).toEqual({ turnover_required: 0 });
+  });
+
+  test("shares a smaller turnover requirement over the bills in order and restores exactly that", async () => {
+    await bill("CPP", member, "11");
+    await bill("CPQ", member, "11");
+    await run("UPDATE users SET turnover_required = 1500 WHERE id = ?", member);
+    await pay();
+    expect(await q("SELECT turnover_taken FROM bills WHERE round_id = ? ORDER BY id", round)).toEqual([{ turnover_taken: 1000 }, { turnover_taken: 500 }]);
+    await correct("void");
+    expect(await q1("SELECT turnover_required FROM users WHERE id = ?", member)).toEqual({ turnover_required: 1500 });
+  });
+
+  test("takes nothing for an old debt when the correction brings a wallet no new money", async () => {
+    await bill("CPR", member, "25");
+    await bill("CPS", member, "11");
+    await pay();
+    await run("UPDATE users SET cashback_balance = 600 WHERE id = ?", member);
+    await run("INSERT INTO member_debts (user_id, amount, outstanding, created_at) VALUES (?, 1000, 1000, 1)", member);
+    // The two bills swap places: every wallet ends where it started.
+    await correct(LOSE);
+    expect(await wallets(member)).toEqual([95_000, 600, 0]);
+    expect(await owed(member)).toBe(1000);
   });
 
   test("a rejected request changes nothing", async () => {

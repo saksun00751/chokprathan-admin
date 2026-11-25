@@ -53,6 +53,25 @@ describe.skipIf(!hasTestDb)("settlement runs", () => {
     expect(await q1("SELECT balance FROM users WHERE id = ?", user)).toEqual({ balance: 2000 });
   });
 
+  test("pays a reopened round under a new run at today's rates", async () => {
+    const rewards = (cashbackBp: number) =>
+      run("INSERT INTO settings (`key`, `value`, updated_at) VALUES ('rewards', ?, 1) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)", JSON.stringify({ cashbackBp, aff1Bp: 0, aff2Bp: 0 }));
+    await rewards(1000);
+    const id = await round("cancelled", []);
+    await settlePending(id, 10);
+    // A schedule change brought the cancelled round back; it then takes a bet and gets a result.
+    await run("UPDATE rounds SET status = 'resulted', result = ?, settled_at = NULL WHERE id = ?", JSON.stringify({ top3: "925", bottom2: "49" }), id);
+    const bill = (await run("INSERT INTO bills (code, user_id, round_id, total_stake, created_at) VALUES ('CPAGAIN', ?, ?, 1000, 1)", user, id)).lastId;
+    await run("INSERT INTO bill_items (bill_id, round_id, bet_type, number, stake, segments, rate100, potential) VALUES (?, ?, 'top2', '11', 10, '[]', 9500, 95000)", bill, id);
+    await rewards(2000);
+    await settlePending(id, 20);
+    expect(await runs(id)).toMatchObject([{ kind: "cancel", status: "done" }, { kind: "result", status: "done" }]);
+    expect(await q1("SELECT cashback_balance FROM users WHERE id = ?", user)).toEqual({ cashback_balance: 200 });
+    await settlePending(id, 30);
+    expect(await runs(id)).toHaveLength(2);
+    expect(await settledAt(id)).toBe(20);
+  });
+
   test("leaves the round unsettled when bills and ledger disagree, and does not retry by itself", async () => {
     const id = await round("resulted", ["25"]);
     // A bill already marked as paid in this run, with no matching ledger row.

@@ -60,6 +60,12 @@ export function sumSettled(days: DayStats[]) {
 export const CASHBACK_TYPES = ["cashback_earn", "cashback_correction"] as const;
 export const AFFILIATE_TYPES = ["aff_earn", "aff_correction"] as const;
 
+/**
+ * Cashback and referral rewards earned. Across every wallet: a correction takes money already claimed
+ * back from the main wallet, and that is a reward undone too.
+ */
+export const rewardsEarned = (days: DayStats[]) => ({ cashback: sumTx(days, CASHBACK_TYPES), affiliate: sumTx(days, AFFILIATE_TYPES) });
+
 /** Sum of transactions of the given types, optionally only from the given wallets. */
 export function sumTx(days: DayStats[], types: readonly string[], wallets?: readonly string[]): number {
   let s = 0;

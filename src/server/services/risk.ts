@@ -150,14 +150,21 @@ export interface ExposureRow {
   manual: ManualLimit | null;
 }
 
+/** The prices bets on this round are taken at: its stored config, else the lottery's current settings. */
+export async function roundBetConfigs(roundId: number): Promise<BetConfig[]> {
+  const round = await getRound(roundId);
+  const lotto = round && (await getLotto(round.lottoId));
+  if (!lotto) return [];
+  const settings = await getSettings();
+  return configsOf(await ownConfig(roundId), () => betConfigs(lotto, settings));
+}
+
 /** Numbers ranked by what the house would pay if they hit. */
 export async function exposureTable(roundId: number, { betType, limit = 60 }: { betType?: BetTypeCode; limit?: number } = {}): Promise<ExposureRow[]> {
   const round = await getRound(roundId);
   const lotto = round && (await getLotto(round.lottoId));
   if (!round || !lotto) return [];
-  const settings = await getSettings();
-  const own = await ownConfig(roundId);
-  const configs = new Map(configsOf(own, () => betConfigs(lotto, settings)).map((c) => [c.code, c]));
+  const configs = new Map((await roundBetConfigs(roundId)).map((c) => [c.code, c]));
   const manualRows = await q<ManualRow>("SELECT round_id, bet_type, number, kind, percent FROM manual_limits WHERE round_id = ?", roundId);
   const manual = new Map(manualRows.map((m) => [keyOf(m.bet_type, m.number), toLimit(m)]));
   const rows = await q<{ bet_type: BetTypeCode; number: string; total_stake: number; potential: number }>(

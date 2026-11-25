@@ -53,7 +53,7 @@ async function correctable(roundId: number, e: Awaited<ReturnType<typeof errorsT
   if (!round) return { ok: false as const, refusal: refused(e.rounds.notFound) };
   const run = await lastRun(roundId);
   if (round.status !== "resulted" || round.settled_at === null || run?.status !== "done") return { ok: false as const, refusal: refused(e.rounds.notCorrectable) };
-  const unrecorded = await q1("SELECT id FROM bills WHERE round_id = ? AND status IN ('won','lost') AND cashback_paid IS NULL LIMIT 1", roundId);
+  const unrecorded = await q1("SELECT id FROM bills WHERE round_id = ? AND status IN ('won','lost') AND (cashback_paid IS NULL OR turnover_taken IS NULL) LIMIT 1", roundId);
   const rewards = json.parse<Rewards | null>(run.rewards, null);
   if (unrecorded || !rewards) return { ok: false as const, refusal: refused(e.rounds.tooOld) };
   return { ok: true as const, round, rewards };
@@ -124,6 +124,7 @@ type BillRow = {
   total_stake: number;
   total_payout: number;
   cashback_paid: number;
+  turnover_taken: number;
   aff1_user: number | null;
   aff1_paid: number;
   aff2_user: number | null;
@@ -137,7 +138,7 @@ type MemberPlan = { lines: Line[]; turnover: number };
 async function planChange(roundId: number, target: RoundResult | "void", rewards: Rewards) {
   const [bills, items] = await Promise.all([
     q<BillRow>(
-      `SELECT id, code, user_id, total_stake, total_payout, cashback_paid, aff1_user, aff1_paid, aff2_user, aff2_paid
+      `SELECT id, code, user_id, total_stake, total_payout, cashback_paid, turnover_taken, aff1_user, aff1_paid, aff2_user, aff2_paid
        FROM bills WHERE round_id = ? AND status IN ('won','lost') ORDER BY id`,
       roundId,
     ),
@@ -163,8 +164,8 @@ async function planChange(roundId: number, target: RoundResult | "void", rewards
     add(bill.user_id, "cashback", "cashback_correction", now.cashback - bill.cashback_paid);
     add(bill.aff1_user, "affiliate", "aff_correction", now.aff1 - bill.aff1_paid);
     add(bill.aff2_user, "affiliate", "aff_correction", now.aff2 - bill.aff2_paid);
-    // Voiding gives back the turnover the bill had counted.
-    if (target === "void") of(bill.user_id).turnover += bill.total_stake;
+    // Voiding puts back what the payout counted off, which can be less than the stake.
+    if (target === "void") of(bill.user_id).turnover += bill.turnover_taken;
     return { bill, now, items: own };
   });
   return { members, after };
@@ -323,9 +324,11 @@ async function applyMember(runId: number, roundId: number, userId: number, plan:
       now,
     );
   }
-  // New money repays what is owed, this correction's shortfall included.
+  // What a wallet gained over the whole correction repays what is owed, this shortfall included. A
+  // payment and a take-back that cancel out bring no new money.
   for (const wallet of ["balance", "cashback", "affiliate"] as const) {
-    if (done.credited[wallet] > 0) await collectDebt({ q, q1, run }, userId, wallet, done.credited[wallet], now);
+    const gained = done.wallets[wallet] - wallets[wallet];
+    if (gained > 0) await collectDebt({ q, q1, run }, userId, wallet, gained, now);
   }
 }
 

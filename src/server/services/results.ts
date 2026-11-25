@@ -52,14 +52,15 @@ async function prepare(roundId: number, input: ResultInput) {
   if (!lotto) return { ok: false as const, refusal: refused(e.rounds.lottoNotFound) };
   const derived = deriveResult(lotto.format, input, e.result);
   if (!derived.ok) return { ok: false as const, refusal: refused(derived.error) };
-  return { ok: true as const, e, format: lotto.format, result: derived.result };
+  return { ok: true as const, e, status: round.status, format: lotto.format, result: derived.result };
 }
 
 const lockRound = (roundId: number) => q1<RoundRow>("SELECT * FROM rounds WHERE id = ? FOR UPDATE", roundId);
 
 const pendingOf = (roundId: number) =>
   q1<{ id: number; result: string; entered_by: number | null }>(
-    "SELECT id, result, entered_by FROM round_results WHERE round_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1",
+    // Corrections wait in the same table; their digits are not this check's to compare.
+    "SELECT id, result, entered_by FROM round_results WHERE round_id = ? AND status = 'pending' AND kind = 'result' ORDER BY id DESC LIMIT 1",
     roundId,
   );
 
@@ -121,6 +122,7 @@ async function previewPayout(roundId: number, result: RoundResult): Promise<Payo
 export async function checkResult(roundId: number, input: ResultInput, actorId: number, now = Date.now()): Promise<{ ok: true; preview: PayoutPreview } | Refusal> {
   const p = await prepare(roundId, input);
   if (!p.ok) return p.refusal;
+  if (p.status !== "pending_confirm") return refused(p.e.rounds.notPending);
   const match = await secondEntry(roundId, p, actorId, now);
   if (!match.ok) return match;
   return { ok: true, preview: await previewPayout(roundId, match.result) };

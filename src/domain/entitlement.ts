@@ -72,8 +72,6 @@ export type Wallets = Record<WalletKind, number>;
 export interface Settled {
   ledger: (Line & { after: number })[];
   wallets: Wallets;
-  /** satang paid into each wallet */
-  credited: Wallets;
   /** satang that could not be taken back: it becomes a debt */
   shortfall: number;
 }
@@ -84,7 +82,6 @@ export interface Settled {
  */
 export function settleLines(start: Wallets, lines: Line[]): Settled {
   const wallets = { ...start };
-  const credited: Wallets = { balance: 0, cashback: 0, affiliate: 0 };
   const ledger: Settled["ledger"] = [];
   let shortfall = 0;
   const move = (line: Line, wallet: WalletKind, amount: number) => {
@@ -92,10 +89,7 @@ export function settleLines(start: Wallets, lines: Line[]): Settled {
     wallets[wallet] += amount;
     ledger.push({ ...line, wallet, amount, after: wallets[wallet] });
   };
-  for (const line of lines.filter((l) => l.amount > 0)) {
-    credited[line.wallet] += line.amount;
-    move(line, line.wallet, line.amount);
-  }
+  for (const line of lines.filter((l) => l.amount > 0)) move(line, line.wallet, line.amount);
   for (const line of lines.filter((l) => l.amount < 0)) {
     let owed = -line.amount;
     for (const wallet of line.wallet === "balance" ? (["balance"] as const) : ([line.wallet, "balance"] as const)) {
@@ -105,5 +99,5 @@ export function settleLines(start: Wallets, lines: Line[]): Settled {
     }
     shortfall += owed;
   }
-  return { ledger, wallets, credited, shortfall };
+  return { ledger, wallets, shortfall };
 }

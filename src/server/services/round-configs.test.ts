@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { invalidate } from "@/server/cache";
 import { json, q, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
+import { roundBetConfigs } from "./risk";
 import { getRoundConfig, refreshRoundConfigs } from "./round-configs";
 
 const now = 1_000_000;
@@ -72,6 +73,19 @@ describe.skipIf(!hasTestDb)("round configs on MariaDB", () => {
     await refreshRoundConfigs(now);
     expect(await top3()).not.toBe(80000);
     expect(await q("SELECT bet_type FROM lotto_rate_overrides WHERE lotto_id = ?", lottoId)).toEqual([]);
+  });
+
+  test("shows staff the prices the round pays, not the lottery's current ones", async () => {
+    const top3Rate = async () => (await roundBetConfigs(roundId)).find((c) => c.code === "top3")!.rate100;
+    await setRate(60000);
+    // No stored config yet: the lottery's own.
+    expect(await top3Rate()).toBe(60000);
+    await setRate(80000);
+    await refreshRoundConfigs(now);
+    await addBill();
+    await setRate(70000);
+    await refreshRoundConfigs(now);
+    expect(await top3Rate()).toBe(80000);
   });
 
   test("leaves closed rounds alone", async () => {

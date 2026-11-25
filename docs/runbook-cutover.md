@@ -517,6 +517,13 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ---
 
+## เทิร์นที่โพยตัดไป (member migration 16)
+
+1. `cd "$MEMBER_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate` (ต้องก่อน deploy ทั้งสองแอป)
+2. งวดที่จ่ายก่อน migration นี้แก้ผลไม่ได้
+
+---
+
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
 1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน

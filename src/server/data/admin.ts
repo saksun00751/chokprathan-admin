@@ -12,9 +12,9 @@ import { can, type Employee } from "@/server/services/employee-auth";
 import { listBanners } from "@/server/services/banners";
 import type { DepositRow, WithdrawalRow } from "@/server/services/finance";
 import { listGroups } from "@/server/services/lotto-groups";
-import { betConfigs, getLotto, listLottos, type Lotto } from "@/server/services/lottos";
+import { getLotto, listLottos, type Lotto } from "@/server/services/lottos";
 import { listDebts } from "@/server/services/debts";
-import { exposureTable, manualLimitList, roundTotals } from "@/server/services/risk";
+import { exposureTable, manualLimitList, roundBetConfigs, roundTotals } from "@/server/services/risk";
 import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
 import { getRound, phaseOf, toRound, type RoundPhase, type RoundRow } from "@/server/services/rounds";
@@ -185,7 +185,7 @@ export async function getAdminRound(roundId: number) {
   if (!round) return null;
   const lotto = (await getLotto(round.lottoId))!;
   const canCorrect = can(viewer, "rounds.correct");
-  const [change, lastRun, waiting, settings, totals, liability, exposure, manual] = await Promise.all([
+  const [change, lastRun, waiting, totals, liability, exposure, manual] = await Promise.all([
     // A correction waiting for approval. The corrected digits are never selected.
     canCorrect
       ? q1<{ kind: "correction" | "cancel"; reason: string | null; entered_by: number | null; entered_at: number; entered_name: string | null }>(
@@ -205,7 +205,6 @@ export async function getAdminRound(roundId: number) {
           roundId,
         )
       : Promise.resolve(undefined),
-    getSettings(),
     roundTotals(roundId),
     q<{ bet_type: string; max: number; stake: number }>(
       "SELECT bet_type, MAX(potential) AS max, SUM(total_stake) AS stake FROM exposures WHERE round_id = ? AND total_stake > 0 GROUP BY bet_type",
@@ -255,7 +254,7 @@ export async function getAdminRound(roundId: number) {
       autoResult: lotto.autoResult,
       group: lotto.group as LottoGroup,
     },
-    configs: betConfigs(lotto, settings).map((c) => ({
+    configs: (await roundBetConfigs(roundId)).map((c) => ({
       code: c.code,
       label: t.lotto.betTypes[c.code].label,
       short: t.lotto.betTypes[c.code].short,

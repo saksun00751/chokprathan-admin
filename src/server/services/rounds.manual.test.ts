@@ -52,6 +52,18 @@ describe("createRound", () => {
     await createRound(2, times, 5, now);
     expect(inserts()[0][2]).toBe(89);
   });
+  it("leaves room for the numbers the scheduler will give that day's own rounds", async () => {
+    getLotto.mockResolvedValue(yiki);
+    db.q1.mockResolvedValue({ n: null });
+    await createRound(2, times, 5, now);
+    expect(inserts()[0][2]).toBe(89);
+  });
+  it("numbers from one when the lottery makes no rounds by itself", async () => {
+    getLotto.mockResolvedValue({ ...yiki, autoRounds: false });
+    db.q1.mockResolvedValue({ n: null });
+    await createRound(2, times, 5, now);
+    expect(inserts()[0][2]).toBe(1);
+  });
   it("refuses a close time the lottery already has", async () => {
     getLotto.mockResolvedValue(weekly);
     db.run.mockResolvedValue({ changes: 0, lastId: 0 });
