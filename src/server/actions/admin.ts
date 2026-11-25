@@ -40,6 +40,7 @@ import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/se
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
 import { writeOffDebt } from "@/server/services/debts";
+import { checkCorrection, confirmCorrection, rejectCorrection, requestCorrection, type CorrectionPreview } from "@/server/services/correction";
 import { checkResult, confirmResult, enterResult, rejectResult, type PayoutPreview, type ResultField } from "@/server/services/results";
 import { cancelRound, closeRoundNow, reconcileRounds, createRound } from "@/server/services/rounds";
 import { refreshRoundConfigs } from "@/server/services/round-configs";
@@ -139,6 +140,43 @@ export async function writeOffDebtAction(debtId: number, reason: string): Promis
   const r = await writeOffDebt(debtId, g.viewer.id, String(reason ?? ""), Date.now(), g.ip);
   if (r.ok) return done(fmt(g.e.admin.debtForgiven, { amount: formatBaht(r.amount) }));
   return { ok: false, error: { notFound: g.e.admin.debtMissing, nothing: g.e.admin.debtNothing, reason: g.e.admin.debtReason }[r.error] };
+}
+
+/** First person: ask to correct a paid draw. Nothing moves until someone else approves. */
+export async function requestCorrectionAction(roundId: number, change: { kind: "correction"; input: ResultInput } | { kind: "cancel" }, reason: string): Promise<ActionResult> {
+  const g = await gate("rounds.correct");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  if (change?.kind !== "correction" && change?.kind !== "cancel") return { ok: false, error: g.e.generic.invalid };
+  const r = await requestCorrection(roundId, change.kind === "cancel" ? { kind: "cancel" } : { kind: "correction", input: change.input ?? {} }, String(reason ?? ""), g.viewer.id);
+  return r.ok ? done(g.e.admin.correctionRequested) : { ok: false, error: r.error };
+}
+
+export type CorrectionCheck = { match: true; preview: CorrectionPreview } | { match: false; fields: ResultField[] };
+
+export async function checkCorrectionAction(roundId: number, input: ResultInput | null): Promise<ActionResult<CorrectionCheck>> {
+  const g = await gate("rounds.correct");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await checkCorrection(roundId, input, g.viewer.id);
+  if (r.ok) return { ok: true, data: { match: true, preview: r.preview } };
+  return r.reason === "mismatch" ? { ok: true, data: { match: false, fields: r.fields } } : { ok: false, error: r.error };
+}
+
+export async function confirmCorrectionAction(roundId: number, input: ResultInput | null): Promise<ActionResult> {
+  const g = await gate("rounds.correct");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await confirmCorrection(roundId, input, g.viewer.id);
+  return r.ok ? done(g.e.admin.correctionDone) : { ok: false, error: r.error };
+}
+
+export async function rejectCorrectionAction(roundId: number): Promise<ActionResult> {
+  const g = await gate("rounds.correct");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await rejectCorrection(roundId, g.viewer.id);
+  return r.ok ? done(g.e.admin.correctionRejected) : { ok: false, error: r.error };
 }
 
 export async function closeRoundAction(roundId: number): Promise<ActionResult> {

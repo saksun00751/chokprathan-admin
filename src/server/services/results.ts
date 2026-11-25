@@ -25,6 +25,10 @@ const ENTERED: Record<ResultFormat, ResultField[]> = {
 /** The two front or back numbers win in either order. */
 const comparable = (v: string | string[] | undefined) => (Array.isArray(v) ? [...v].sort().join(",") : v);
 
+/** The boxes whose values differ between two results of one format. */
+export const differingFields = (format: ResultFormat, a: RoundResult, b: RoundResult): ResultField[] =>
+  ENTERED[format].filter((f) => comparable(a[f]) !== comparable(b[f]));
+
 export type Refusal =
   | { ok: false; error: string; reason: "refused" | "sameUser" }
   | { ok: false; error: string; reason: "mismatch"; fields: ResultField[] };
@@ -88,7 +92,7 @@ async function secondEntry(roundId: number, p: Extract<Awaited<ReturnType<typeof
   const first = pending && json.parse<RoundResult | null>(pending.result, null);
   if (!pending || !first) return refused(p.e.rounds.notPending);
   if (pending.entered_by === actorId) return { ok: false, error: p.e.rounds.sameUser, reason: "sameUser" };
-  const fields = ENTERED[p.format].filter((f) => comparable(first[f]) !== comparable(p.result[f]));
+  const fields = differingFields(p.format, first, p.result);
   if (fields.length) {
     await audit(actorId, "round.result.mismatch", `round:${roundId}`, { fields }, now);
     return { ok: false, error: p.e.rounds.mismatch, reason: "mismatch", fields };

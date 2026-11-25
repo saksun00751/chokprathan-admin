@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmResult } from "@/components/admin/confirm-result";
+import { CorrectionPanel } from "@/components/admin/correction-panel";
 import { CancelRoundButton, CloseRoundButton, ExposurePanel, ResultForm } from "@/components/admin/round-tools";
 import { Figure, PHASE_TONE } from "@/components/admin/ui";
 import { ResultDigits } from "@/components/lotto/result-digits";
@@ -88,6 +89,11 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
         </div>
 
         <aside className="flex flex-col gap-4 xl:sticky xl:top-20">
+          {data.mismatch && (
+            <p role="alert" className="rounded-card border border-danger bg-danger-soft px-4 py-3 text-sm text-danger">
+              {t.admin.ops.correction.mismatch}
+            </p>
+          )}
           <Card className="p-5">
             <h2 className="mb-3 font-semibold">{rd.result}</h2>
             {round.result ? (
@@ -112,6 +118,11 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
               </p>
             )}
           </Card>
+          {data.correction && (
+            <Card className="flex flex-col p-5">
+              <CorrectionPanel roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} pending={data.correction.pending} />
+            </Card>
+          )}
         </aside>
       </div>
     </>

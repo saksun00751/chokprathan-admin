@@ -11,6 +11,10 @@ export type TxType =
   | "withdraw_refund"
   /** taken from money coming in to repay a debt (written by chokprathan-core) */
   | "debt_repay"
+  /** differences paid or taken back when a result is corrected */
+  | "win_correction"
+  | "cashback_correction"
+  | "aff_correction"
   | "bet"
   | "win"
   | "refund"

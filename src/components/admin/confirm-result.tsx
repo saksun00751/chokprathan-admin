@@ -4,21 +4,13 @@ import { useState, useTransition, type ReactNode } from "react";
 import { formatBaht } from "chokprathan-core/rules/money";
 import type { ResultFormat } from "chokprathan-core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
+import { ResultBoxes } from "@/components/admin/result-boxes";
 import { Digits, EMPTY_RESULT, resultComplete, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/i18n/client";
 import { fmt, formatDateTime, formatNumber } from "@/i18n/format";
 import { checkResultAction, confirmResultAction, rejectResultAction, withdrawResultAction, type ResultCheck } from "@/server/actions/admin";
-
-const digitInput =
-  "tnum h-11 w-full rounded-control border border-line-strong bg-surface px-3 text-center text-lg font-semibold tracking-[0.2em] focus-visible:border-brand";
-
-const BOXES: Record<ResultFormat, [keyof ResultValues, number][]> = {
-  standard: [["top3", 3], ["bottom2", 2]],
-  laos4: [["top4", 4]],
-  thai_gov: [["first6", 6], ["f1", 3], ["f2", 3], ["b1", 3], ["b2", 3], ["bottom2", 2]],
-};
 
 /**
  * The second person's side of a result: type it again (the first entry is never sent here), see what
@@ -53,16 +45,6 @@ export function ConfirmResult({
   const [v, setV] = useState<ResultValues>(EMPTY_RESULT);
   const [checked, setChecked] = useState<ResultCheck | null>(null);
 
-  const labels: Record<keyof ResultValues, string> = {
-    top3: rf.top3,
-    bottom2: rf.bottom2,
-    top4: rf.top4,
-    first6: rf.first6,
-    f1: rf.front1,
-    f2: rf.front2,
-    b1: rf.back1,
-    b2: rf.back2,
-  };
   const fieldNames = { top3: rf.top3, bottom2: rf.bottom2, top4: rf.top4, first6: rf.first6, front3: `${rf.front1}, ${rf.front2}`, back3: `${rf.back1}, ${rf.back2}` };
 
   const send = (action: () => Promise<{ ok: boolean; message?: string; error?: string }>) =>
@@ -103,25 +85,15 @@ export function ConfirmResult({
     >
       {who}
       <p className="text-sm text-ink-2">{c.hint}</p>
-      <div className="grid grid-cols-2 gap-2">
-        {BOXES[format].map(([key, max]) => (
-          <label key={key} className={max > 3 ? "col-span-2 flex flex-col gap-1 text-sm" : "flex flex-col gap-1 text-sm"}>
-            <span className="text-xs text-ink-3">{labels[key]}</span>
-            <input
-              inputMode="numeric"
-              autoComplete="off"
-              value={v[key]}
-              maxLength={max}
-              aria-label={`${round} ${labels[key]}`}
-              onChange={(e) => {
-                setV({ ...v, [key]: e.target.value.replace(/\D/g, "").slice(0, max) });
-                setChecked(null);
-              }}
-              className={digitInput}
-            />
-          </label>
-        ))}
-      </div>
+      <ResultBoxes
+        format={format}
+        values={v}
+        onChange={(next) => {
+          setV(next);
+          setChecked(null);
+        }}
+        round={round}
+      />
       {checked && !checked.match && (
         <p role="alert" className="rounded-control bg-danger-soft px-3 py-2 text-sm text-danger">
           {fmt(c.differs, { fields: checked.fields.map((f) => fieldNames[f]).join(" · ") })}

@@ -11,6 +11,7 @@ import type { ResultFormat, RoundResult } from "chokprathan-core/rules/types";
 import { invalidate } from "@/server/cache";
 import { afterCommit, json, q, q1, run, tx, type SqlValue } from "@/server/db";
 import { audit } from "./audit";
+import { applyCorrection } from "./correction";
 import { settlePending } from "./settlement";
 import { getLotto, listLottos, type Lotto } from "./lottos";
 
@@ -438,6 +439,8 @@ export async function resumeSettlements(now: number): Promise<number> {
   let settled = 0;
   for (const r of open) {
     try {
+      // A confirmed correction is finished by its own engine; each of the two ignores the other's rounds.
+      await applyCorrection(r.id, now);
       await settlePending(r.id, now);
       settled++;
     } catch (error) {

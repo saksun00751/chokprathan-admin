@@ -114,11 +114,19 @@ export async function getAwaitingResults() {
   const { lang, t } = await getI18n();
   const signedIn = await getEmployee();
   // Either permission opens the page; each queue's actions check their own.
-  const viewer = await requireEmployee(signedIn && can(signedIn, "rounds.confirm") && !can(signedIn, "rounds.result") ? "rounds.confirm" : "rounds.result");
+  const opening = (["rounds.result", "rounds.confirm", "rounds.correct"] as const).find((p) => signedIn && can(signedIn, p)) ?? "rounds.result";
+  const viewer = await requireEmployee(opening);
   await io();
   const now = Date.now();
   const canEnter = can(viewer, "rounds.result");
-  const [rows, waiting, lottos] = await Promise.all([
+  const [changes, rows, waiting, lottos] = await Promise.all([
+    can(viewer, "rounds.correct")
+      ? q<RoundRow & { bills: number }>(
+          `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status IN ('won','lost')) AS bills
+           FROM rounds r JOIN round_results p ON p.round_id = r.id AND p.status = 'pending' AND p.kind IN ('correction','cancel')
+           ORDER BY p.entered_at LIMIT 50`,
+        )
+      : Promise.resolve([]),
     canEnter
       ? q<RoundRow & { bills: number }>(
           `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
@@ -160,6 +168,7 @@ export async function getAwaitingResults() {
     serverNow: now,
     canConfirm: can(viewer, "rounds.confirm"),
     rounds: rows.flatMap((row) => view(row) ?? []),
+    corrections: changes.flatMap((row) => view(row) ?? []),
     pending: waiting.flatMap((row) => {
       const v = view(row);
       return v ? [{ ...v, enteredBy: row.entered_name ?? "-", enteredAt: row.entered_at, mine: row.entered_by === viewer.id }] : [];
@@ -175,7 +184,18 @@ export async function getAdminRound(roundId: number) {
   const round = await getRound(roundId);
   if (!round) return null;
   const lotto = (await getLotto(round.lottoId))!;
-  const [waiting, settings, totals, liability, exposure, manual] = await Promise.all([
+  const canCorrect = can(viewer, "rounds.correct");
+  const [change, lastRun, waiting, settings, totals, liability, exposure, manual] = await Promise.all([
+    // A correction waiting for approval. The corrected digits are never selected.
+    canCorrect
+      ? q1<{ kind: "correction" | "cancel"; reason: string | null; entered_by: number | null; entered_at: number; entered_name: string | null }>(
+          `SELECT p.kind, p.reason, p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
+           FROM round_results p LEFT JOIN employees e ON e.id = p.entered_by
+           WHERE p.round_id = ? AND p.status = 'pending' AND p.kind IN ('correction','cancel') ORDER BY p.id DESC LIMIT 1`,
+          roundId,
+        )
+      : Promise.resolve(undefined),
+    q1<{ status: string }>("SELECT status FROM settlement_runs WHERE round_id = ? ORDER BY id DESC LIMIT 1", roundId),
     // Who typed it and when, never the digits.
     round.status === "pending_confirm"
       ? q1<{ entered_by: number | null; entered_at: number; entered_name: string | null }>(
@@ -197,6 +217,22 @@ export async function getAdminRound(roundId: number) {
   return {
     serverNow: now,
     canResult: can(viewer, "rounds.result"),
+    // Only a draw that is resulted and fully paid can be asked to change.
+    correction:
+      canCorrect && round.status === "resulted" && (change !== undefined || (round.settledAt !== null && lastRun?.status === "done"))
+        ? {
+            pending: change
+              ? {
+                  kind: change.kind,
+                  reason: change.reason ?? "",
+                  requestedBy: change.entered_name ?? "-",
+                  requestedAt: change.entered_at,
+                  mine: change.entered_by === viewer.id,
+                }
+              : null,
+          }
+        : null,
+    mismatch: lastRun?.status === "mismatch",
     canConfirm: can(viewer, "rounds.confirm"),
     pending: waiting ? { enteredBy: waiting.entered_name ?? "-", enteredAt: waiting.entered_at, mine: waiting.entered_by === viewer.id } : null,
     canCancel: can(viewer, "rounds.cancel"),

@@ -1,7 +1,7 @@
 import "server-only";
 import { collectDebt } from "chokprathan-core/wallet/debt";
 import { maskPhone } from "@/domain/banks";
-import { isWinning } from "chokprathan-core/rules/match";
+import { entitled as entitledFor } from "@/domain/entitlement";
 import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { invalidate } from "@/server/cache";
 import { insertMany, json, q, q1, run, tx, type SqlValue } from "@/server/db";
@@ -53,10 +53,12 @@ export async function settlePending(roundId: number, now = Date.now()): Promise<
 function openRun(roundId: number, kind: "result" | "cancel", current: RewardSettings, now: number): Promise<{ runId: number; rewards: RewardSettings } | null> {
   return tx(async () => {
     await q1("SELECT id FROM rounds WHERE id = ? FOR UPDATE", roundId);
-    const last = await q1<{ id: number; status: "running" | "done" | "mismatch"; rewards: string | null }>(
-      "SELECT id, status, rewards FROM settlement_runs WHERE round_id = ? ORDER BY id DESC LIMIT 1",
+    const last = await q1<{ id: number; kind: string; status: "running" | "done" | "mismatch"; rewards: string | null }>(
+      "SELECT id, kind, status, rewards FROM settlement_runs WHERE round_id = ? ORDER BY id DESC LIMIT 1",
       roundId,
     );
+    // A corrected round is paid by the correction, never by this.
+    if (last && (last.kind === "correction" || last.kind === "void")) return null;
     if (last) return last.status === "mismatch" ? null : { runId: last.id, rewards: json.parse<RewardSettings>(last.rewards, current) };
     const confirmed = await q1<{ id: number }>("SELECT id FROM round_results WHERE round_id = ? AND status = 'confirmed' ORDER BY id DESC LIMIT 1", roundId);
     const { lastId } = await run(
@@ -183,35 +185,25 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
     const wonBills: [number, number][] = [];
     const lostBills: number[] = [];
     for (const b of chunk) {
-      let payout = 0;
-      // satang actually paid for the lines that lost
-      let lostPaid = 0;
-      let won = false;
-      for (const it of itemsByBill.get(b.id) ?? []) {
-        if (isWinning(it.bet_type, it.number, result)) {
-          won = true;
-          payout += it.potential;
-          wonItems.push(it.id);
-        } else {
-          lostPaid += it.stake * 100 - it.discount;
-        }
-      }
+      const own = itemsByBill.get(b.id) ?? [];
+      const owner = owners.get(b.user_id);
+      const upline = (id: number | null | undefined) => !!id && wallets.has(id);
+      const due = entitledFor(b.total_stake, own, result, rewards, { aff1: upline(owner?.upline1_id), aff2: upline(owner?.upline2_id) });
+      const { payout, cashback } = due;
+      const won = due.winners.size > 0;
+      for (const it of own) if (due.winners.has(it)) wonItems.push(it.id);
       if (won) wonBills.push([b.id, payout]);
       else lostBills.push(b.id);
 
       credit(b.user_id, "balance", payout, "win", b.code, "ถูกรางวัล");
-      const cashback = Math.floor((lostPaid * rewards.cashbackBp) / 10_000);
       credit(b.user_id, "cashback", cashback, "cashback_earn", b.code, "คืนยอดเสีย");
-      const owner = owners.get(b.user_id);
-      const tiers: [number | null | undefined, number][] = [
-        [owner?.upline1_id, rewards.aff1Bp],
-        [owner?.upline2_id, rewards.aff2Bp],
-      ];
-      const [aff1, aff2] = tiers.map(([uplineId, bp]) => {
-        const amount = uplineId && wallets.has(uplineId) ? Math.floor((b.total_stake * bp) / 10_000) : 0;
+      const { aff1, aff2 } = due;
+      for (const [uplineId, amount] of [
+        [owner?.upline1_id, aff1],
+        [owner?.upline2_id, aff2],
+      ] as const) {
         if (uplineId) credit(uplineId, "affiliate", amount, "aff_earn", b.code, `ค่าแนะนำจาก ${maskPhone(owner?.phone)}`);
-        return amount;
-      });
+      }
       entitled.push({ bill: b.id, cashback, aff1User: owner?.upline1_id ?? null, aff1, aff2User: owner?.upline2_id ?? null, aff2 });
       const d = deltas.get(b.user_id) ?? { balance: 0, cashback: 0, affiliate: 0, turnover: 0 };
       d.turnover += b.total_stake;

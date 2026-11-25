@@ -74,7 +74,8 @@ GRANT SELECT, INSERT, UPDATE ON lotto.round_configs TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, DELETE ON lotto.lotto_rate_overrides TO 'chok_admin'@'%';
 
 -- Member debts: read, collected from money coming in, and forgiven.
-GRANT SELECT, UPDATE ON lotto.member_debts TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.member_debts TO 'chok_admin'@'%';
+GRANT SELECT, INSERT ON lotto.correction_members TO 'chok_admin'@'%';
 
 -- Results waiting for or given a second person's confirmation, and each payout / refund run.
 GRANT SELECT, INSERT, UPDATE ON lotto.round_results TO 'chok_admin'@'%';

@@ -506,6 +506,17 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ---
 
+## แก้ผลรางวัลที่จ่ายแล้ว (หลังบ้านรุ่นเดียวกับ migration 15)
+
+1. ให้สิทธิ์ใหม่จาก `scripts/grants.sql`: `chok_admin` ต้องมี `INSERT` บน `member_debts` และ `SELECT, INSERT` บน `correction_members`
+2. ให้สิทธิ์ "แก้ผลรางวัลหรือยกเลิกงวดที่จ่ายแล้ว" (`rounds.correct`) อย่างน้อยสองบัญชี
+3. แก้ได้เฉพาะงวดที่จ่ายครบด้วยหลังบ้านรุ่นนี้เป็นต้นไป
+
+ถ้ารอบแก้ผลขึ้น `mismatch`: เงินของสมาชิกถูกปรับแล้วแต่บันทึกในโพยยังไม่เปลี่ยน ดูรายชื่อใน `settlement_runs.report`
+แล้วเทียบ `transactions` และ `member_debts` ที่มี `run_id` นั้นก่อนทำรายการอื่นกับงวด
+
+---
+
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
 1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน

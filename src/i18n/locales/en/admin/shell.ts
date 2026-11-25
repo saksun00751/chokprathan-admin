@@ -71,6 +71,7 @@ export const shell: typeof th = {
     "rounds.view": "View draws and per-number stakes",
     "rounds.result": "Enter results",
     "rounds.confirm": "Confirm results typed by someone else",
+    "rounds.correct": "Correct a paid result or void a draw",
     "rounds.cancel": "Cancel draws and refund",
     "risk.manage": "Set payout rates, cut thresholds, and number cuts",
     "lottos.manage": "Set up lotteries and draw schedules",

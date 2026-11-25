@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   { id: "rounds.view", group: "lotto" },
   { id: "rounds.result", group: "lotto" },
   { id: "rounds.confirm", group: "lotto" },
+  { id: "rounds.correct", group: "lotto" },
   { id: "rounds.cancel", group: "lotto" },
   { id: "risk.manage", group: "lotto" },
   { id: "lottos.manage", group: "lotto" },
