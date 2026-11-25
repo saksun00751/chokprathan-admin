@@ -48,7 +48,7 @@ next-env.d.ts
 /scripts
 
 # docs
-/docs
+/docs/*.md
 
 # md Files
 *.md
