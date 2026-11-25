@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { RateChip } from "@/components/ui/rate-chip";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { cancelRoundAction, setManualLimitAction, setResultAction } from "@/server/actions/admin";
+import { cancelRoundAction, closeRoundAction, enterResultAction, setManualLimitAction } from "@/server/actions/admin";
 import type { ExposureRow } from "@/server/services/risk";
 
 const digitInput =
@@ -53,7 +53,7 @@ export function ResultForm({ roundId, format, round }: { roundId: number; format
         });
         if (!answer.ok) return;
         start(async () => {
-          const r = await setResultAction(roundId, input);
+          const r = await enterResultAction(roundId, input);
           if (r.ok) toast.success(r.message ?? rf.saved);
           else toast.error(r.error);
         });
@@ -82,6 +82,32 @@ export function ResultForm({ roundId, format, round }: { roundId: number; format
         {rf.submit}
       </Button>
     </form>
+  );
+}
+
+export function CloseRoundButton({ roundId, round }: { roundId: number; round: string }) {
+  const { t } = useI18n();
+  const c = t.admin.ops.confirmResult;
+  const ask = useConfirm();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      variant="dangerGhost"
+      className="border border-danger/30"
+      loading={pending}
+      onClick={async () => {
+        const answer = await ask({ title: c.closeTitle, tone: "danger", details: [[t.admin.shell.confirm.round, round]], note: c.closeNote, confirmLabel: c.close });
+        if (!answer.ok) return;
+        start(async () => {
+          const r = await closeRoundAction(roundId);
+          if (r.ok) toast.success(r.message ?? c.close);
+          else toast.error(r.error);
+        });
+      }}
+    >
+      {c.close}
+    </Button>
   );
 }
 

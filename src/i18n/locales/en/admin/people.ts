@@ -246,6 +246,11 @@ export const people: typeof th = {
     },
     actions: {
       "round.result": "Entered result",
+      "round.result.enter": "Typed a result",
+      "round.result.mismatch": "Confirmation did not match",
+      "round.result.reject": "Sent a result back",
+      "round.close": "Closed a draw early",
+      "settlement.mismatch": "Payout totals did not match",
       "round.cancel": "Cancelled draw",
       "round.reopen": "Reopened draw",
       "round.create": "Created draw",

@@ -246,6 +246,11 @@ export const people: typeof th = {
     },
     actions: {
       "round.result": "បានបញ្ចូលលទ្ធផល",
+      "round.result.enter": "បញ្ចូលលទ្ធផលរង់ចាំបញ្ជាក់",
+      "round.result.mismatch": "ការបញ្ជាក់មិនត្រូវគ្នា",
+      "round.result.reject": "បញ្ជូនលទ្ធផលត្រឡប់",
+      "round.close": "បិទមុនម៉ោង",
+      "settlement.mismatch": "ចំនួនបង់រង្វាន់មិនត្រូវគ្នា",
       "round.cancel": "បានលុបចោលវគ្គ",
       "round.reopen": "បានបើកវគ្គដែលលុបចោលឡើងវិញ",
       "round.create": "បានបង្កើតវគ្គ",

@@ -105,41 +105,63 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
 }
 
 /** Rounds past their close time that still wait for a result typed in by staff. */
+/** A draw this long after its draw time with no confirmed result is marked late. */
+const LATE_AFTER_MS = 30 * 60_000;
+
+/** The two result queues: rounds to type, and typed results waiting for a second person. */
 export async function getAwaitingResults() {
   const { lang, t } = await getI18n();
-  await requireEmployee("rounds.result");
+  const signedIn = await getEmployee();
+  // Either permission opens the page; each queue's actions check their own.
+  const viewer = await requireEmployee(signedIn && can(signedIn, "rounds.confirm") && !can(signedIn, "rounds.result") ? "rounds.confirm" : "rounds.result");
   await io();
   const now = Date.now();
-  const [rows, lottos] = await Promise.all([
-    q<RoundRow & { bills: number }>(
-      `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
-       FROM rounds r JOIN lottos l ON l.id = r.lotto_id
-       WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL}
-       ORDER BY r.closes_at LIMIT 100`,
-      now,
+  const canEnter = can(viewer, "rounds.result");
+  const [rows, waiting, lottos] = await Promise.all([
+    canEnter
+      ? q<RoundRow & { bills: number }>(
+          `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
+           FROM rounds r JOIN lottos l ON l.id = r.lotto_id
+           WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL}
+           ORDER BY r.closes_at LIMIT 100`,
+          now,
+        )
+      : Promise.resolve([]),
+    // The typed result itself is never selected: the second person must not see it.
+    q<RoundRow & { bills: number; entered_by: number | null; entered_at: number; entered_name: string | null }>(
+      `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills,
+              p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
+       FROM rounds r JOIN round_results p ON p.round_id = r.id AND p.status = 'pending'
+       LEFT JOIN employees e ON e.id = p.entered_by
+       WHERE r.status = 'pending_confirm' ORDER BY r.closes_at LIMIT 100`,
     ),
     listLottos({ includeDisabled: true }),
   ]);
   const byId = new Map(lottos.map((l) => [l.id, l]));
+  const view = (row: RoundRow & { bills: number }) => {
+    const r = toRound(row);
+    const lotto = byId.get(r.lottoId);
+    if (!lotto) return null;
+    return {
+      id: r.id,
+      lotto: lottoName(lotto, t),
+      shortName: lottoShort(lotto, t),
+      flag: lotto.flag,
+      format: lotto.format as ResultFormat,
+      label: roundName(r, lang, t),
+      closesAt: r.closesAt,
+      drawAt: r.drawAt,
+      late: now > r.drawAt + LATE_AFTER_MS,
+      bills: row.bills,
+    };
+  };
   return {
     serverNow: now,
-    rounds: rows.flatMap((row) => {
-      const r = toRound(row);
-      const lotto = byId.get(r.lottoId);
-      if (!lotto) return [];
-      return [
-        {
-          id: r.id,
-          lotto: lottoName(lotto, t),
-          shortName: lottoShort(lotto, t),
-          flag: lotto.flag,
-          format: lotto.format as ResultFormat,
-          label: roundName(r, lang, t),
-          closesAt: r.closesAt,
-          drawAt: r.drawAt,
-          bills: row.bills,
-        },
-      ];
+    canConfirm: can(viewer, "rounds.confirm"),
+    rounds: rows.flatMap((row) => view(row) ?? []),
+    pending: waiting.flatMap((row) => {
+      const v = view(row);
+      return v ? [{ ...v, enteredBy: row.entered_name ?? "-", enteredAt: row.entered_at, mine: row.entered_by === viewer.id }] : [];
     }),
   };
 }
@@ -152,7 +174,16 @@ export async function getAdminRound(roundId: number) {
   const round = await getRound(roundId);
   if (!round) return null;
   const lotto = (await getLotto(round.lottoId))!;
-  const [settings, totals, liability, exposure, manual] = await Promise.all([
+  const [waiting, settings, totals, liability, exposure, manual] = await Promise.all([
+    // Who typed it and when, never the digits.
+    round.status === "pending_confirm"
+      ? q1<{ entered_by: number | null; entered_at: number; entered_name: string | null }>(
+          `SELECT p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
+           FROM round_results p LEFT JOIN employees e ON e.id = p.entered_by
+           WHERE p.round_id = ? AND p.status = 'pending' ORDER BY p.id DESC LIMIT 1`,
+          roundId,
+        )
+      : Promise.resolve(undefined),
     getSettings(),
     roundTotals(roundId),
     q<{ bet_type: string; max: number; stake: number }>(
@@ -165,6 +196,8 @@ export async function getAdminRound(roundId: number) {
   return {
     serverNow: now,
     canResult: can(viewer, "rounds.result"),
+    canConfirm: can(viewer, "rounds.confirm"),
+    pending: waiting ? { enteredBy: waiting.entered_name ?? "-", enteredAt: waiting.entered_at, mine: waiting.entered_by === viewer.id } : null,
     canCancel: can(viewer, "rounds.cancel"),
     canLimit: can(viewer, "risk.manage"),
     round: {

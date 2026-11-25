@@ -6,6 +6,7 @@ export const PERMISSIONS = [
 
   { id: "rounds.view", group: "lotto" },
   { id: "rounds.result", group: "lotto" },
+  { id: "rounds.confirm", group: "lotto" },
   { id: "rounds.cancel", group: "lotto" },
   { id: "risk.manage", group: "lotto" },
   { id: "lottos.manage", group: "lotto" },
@@ -102,7 +103,7 @@ export const DEFAULT_ROLES: { name: string; description: string; permissions: st
   {
     name: "ดูแลหวย",
     description: "กรอกผล ดูยอดแทงรายเลข และอั้นเลข",
-    permissions: ["dashboard.view", "rounds.view", "rounds.result", "risk.manage"],
+    permissions: ["dashboard.view", "rounds.view", "rounds.result", "rounds.confirm", "risk.manage"],
   },
   {
     name: "ซัพพอร์ต",

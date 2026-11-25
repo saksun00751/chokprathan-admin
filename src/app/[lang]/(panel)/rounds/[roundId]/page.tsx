@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { CancelRoundButton, ExposurePanel, ResultForm } from "@/components/admin/round-tools";
+import { ConfirmResult } from "@/components/admin/confirm-result";
+import { CancelRoundButton, CloseRoundButton, ExposurePanel, ResultForm } from "@/components/admin/round-tools";
 import { Figure, PHASE_TONE } from "@/components/admin/ui";
 import { ResultDigits } from "@/components/lotto/result-digits";
 import { Countdown, ServerTimeSync } from "@/components/ui/clock";
@@ -44,7 +45,14 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
           </span>
         }
         description={fmt(rd.times, { opens: formatDateTime(round.opensAt, lang), closes: formatDateTime(round.closesAt, lang), draw: formatDateTime(round.drawAt, lang) })}
-        actions={data.canCancel && (round.phase === "open" || round.phase === "closed") ? <CancelRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} /> : undefined}
+        actions={
+          data.canCancel && (round.phase === "open" || round.phase === "closed" || round.phase === "confirming") ? (
+            <span className="flex flex-wrap gap-2">
+              {round.phase === "open" && <CloseRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />}
+              <CancelRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />
+            </span>
+          ) : undefined
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
@@ -87,6 +95,8 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
                 <ResultDigits format={lotto.format} result={round.result} />
                 {round.resultedAt && <p className="mt-3 text-xs text-ink-3">{fmt(rd.resultedAt, { time: formatDateTime(round.resultedAt, lang) })}</p>}
               </>
+            ) : data.pending ? (
+              <ConfirmResult roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} {...data.pending} canConfirm={data.canConfirm} canEnter={data.canResult} />
             ) : round.phase === "closed" ? (
               data.canResult ? (
                 <ResultForm roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} />

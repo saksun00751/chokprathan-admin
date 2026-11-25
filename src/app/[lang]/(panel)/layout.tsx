@@ -47,16 +47,20 @@ async function navState(): Promise<NavState | null> {
   // Until the password is changed (or 2-step sign-in set up, when required) only the security page opens.
   if (viewer.mustChangePassword || (await needsTotpSetup(viewer))) return { allowed: ["/security"], badges: { finance: 0, results: 0 } };
   const allowed = NAV_GROUPS.flatMap((g) => g.items)
-    .filter((i) => i.need === null || can(viewer, i.need))
+    .filter((i) => i.need === null || can(viewer, i.need) || (i.also !== undefined && can(viewer, i.also)))
     .map((i) => i.href);
   const wantFinance = can(viewer, "finance.view");
   const wantResults = can(viewer, "rounds.result");
+  const wantConfirm = can(viewer, "rounds.confirm");
+  // The results badge adds both queues: rounds to type and results to confirm.
+  const toType = wantResults ? `(SELECT COUNT(*) FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL})` : "0";
+  const toConfirm = wantConfirm ? "(SELECT COUNT(*) FROM rounds WHERE status = 'pending_confirm')" : "0";
   const counts =
-    wantFinance || wantResults
+    wantFinance || wantResults || wantConfirm
       ? await q1<{ f: number; r: number }>(
           `SELECT
              ${wantFinance ? "(SELECT COUNT(*) FROM deposits WHERE status = 'pending') + (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending')" : "0"} AS f,
-             ${wantResults ? `(SELECT COUNT(*) FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL})` : "0"} AS r`,
+             ${toType} + ${toConfirm} AS r`,
           ...(wantResults ? [Date.now()] : []),
         )
       : undefined;

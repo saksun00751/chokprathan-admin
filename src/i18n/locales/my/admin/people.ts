@@ -246,6 +246,11 @@ export const people: typeof th = {
     },
     actions: {
       "round.result": "ရလဒ် ထည့်ခဲ့",
+      "round.result.enter": "အတည်ပြုရန် ရလဒ်ထည့်သည်",
+      "round.result.mismatch": "အတည်ပြုချက် မကိုက်ညီ",
+      "round.result.reject": "ရလဒ်ကို ပြန်ပို့သည်",
+      "round.close": "အချိန်မတိုင်မီ ပိတ်သည်",
+      "settlement.mismatch": "ဆုငွေစုစုပေါင်း မကိုက်ညီ",
       "round.cancel": "ထီကြိမ် ပယ်ဖျက်ခဲ့",
       "round.reopen": "ပယ်ဖျက်ထားသော ထီကြိမ်ကို ပြန်ဖွင့်ခဲ့",
       "round.create": "ထီကြိမ် ဖန်တီးခဲ့",

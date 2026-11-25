@@ -39,7 +39,8 @@ import { closeMember, reopenMember, updateMember, type MemberEdit, type MemberEd
 import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/services/lottos";
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
-import { cancelRound, reconcileRounds, setResult, createRound } from "@/server/services/rounds";
+import { checkResult, confirmResult, enterResult, rejectResult, type PayoutPreview, type ResultField } from "@/server/services/results";
+import { cancelRound, closeRoundNow, reconcileRounds, createRound } from "@/server/services/rounds";
 import { refreshRoundConfigs } from "@/server/services/round-configs";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
 import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
@@ -84,16 +85,62 @@ function flat(obj: Record<string, unknown>, prefix = ""): Record<string, unknown
 
 /* ---------- rounds ---------- */
 
-export async function setResultAction(roundId: number, input: ResultInput): Promise<ActionResult> {
+/** First person: type a result. Nothing is paid until someone else confirms it. */
+export async function enterResultAction(roundId: number, input: ResultInput): Promise<ActionResult> {
   const g = await gate("rounds.result");
   if ("refusal" in g) return g.refusal;
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await setResult(roundId, input, g.viewer.id);
-  return r.ok ? done(g.e.admin.resultSaved) : { ok: false, error: r.error };
+  const r = await enterResult(roundId, input, g.viewer.id);
+  return r.ok ? done(g.e.admin.resultEntered) : { ok: false, error: r.error };
+}
+
+export type ResultCheck = { match: true; preview: PayoutPreview } | { match: false; fields: ResultField[] };
+
+/** Second person: compare their typing with the waiting result, and preview the payout. Pays nothing. */
+export async function checkResultAction(roundId: number, input: ResultInput): Promise<ActionResult<ResultCheck>> {
+  const g = await gate("rounds.confirm");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await checkResult(roundId, input, g.viewer.id);
+  if (r.ok) return { ok: true, data: { match: true, preview: r.preview } };
+  return r.reason === "mismatch" ? { ok: true, data: { match: false, fields: r.fields } } : { ok: false, error: r.error };
+}
+
+export async function confirmResultAction(roundId: number, input: ResultInput): Promise<ActionResult> {
+  const g = await gate("rounds.confirm");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await confirmResult(roundId, input, g.viewer.id);
+  return r.ok ? done(g.e.admin.resultConfirmed) : { ok: false, error: r.error };
+}
+
+export async function rejectResultAction(roundId: number): Promise<ActionResult> {
+  const g = await gate("rounds.confirm");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await rejectResult(roundId, g.viewer.id, { ownOnly: false });
+  return r.ok ? done(g.e.admin.resultRejected) : { ok: false, error: r.error };
+}
+
+/** Whoever typed a result may take it back. */
+export async function withdrawResultAction(roundId: number): Promise<ActionResult> {
+  const g = await gate("rounds.result");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await rejectResult(roundId, g.viewer.id, { ownOnly: true });
+  return r.ok ? done(g.e.admin.resultWithdrawn) : { ok: false, error: r.error };
+}
+
+export async function closeRoundAction(roundId: number): Promise<ActionResult> {
+  const g = await gate("rounds.cancel");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await closeRoundNow(roundId, g.viewer.id);
+  return r.ok ? done(g.e.admin.roundClosed) : { ok: false, error: r.error === "notFound" ? g.e.rounds.notFound : g.e.rounds.closeNotOpen };
 }
 
 /** Enter results for many rounds at once (end of the day for stock lotteries). Each round settles on its own. */
-export async function setResultsBulkAction(
+export async function enterResultsBulkAction(
   items: { roundId: number; input: ResultInput }[],
 ): Promise<ActionResult<{ saved: number; errors: { roundId: number; error: string }[] }>> {
   const g = await gate("rounds.result");
@@ -103,7 +150,7 @@ export async function setResultsBulkAction(
   const errors: { roundId: number; error: string }[] = [];
   for (const item of items) {
     if (!isId(item?.roundId)) continue;
-    const r = await setResult(item.roundId, item.input ?? {}, g.viewer.id);
+    const r = await enterResult(item.roundId, item.input ?? {}, g.viewer.id);
     if (r.ok) saved++;
     else errors.push({ roundId: item.roundId, error: r.error });
   }

@@ -245,6 +245,11 @@ export const people: typeof th = {
     },
     actions: {
       "round.result": "ປ້ອນຜົນລາງວັນ",
+      "round.result.enter": "ປ້ອນຜົນລໍຢືນຢັນ",
+      "round.result.mismatch": "ຢືນຢັນຜົນບໍ່ຕົງ",
+      "round.result.reject": "ຕີກັບຜົນລາງວັນ",
+      "round.close": "ປິດຮັບກ່ອນເວລາ",
+      "settlement.mismatch": "ຍອດຈ່າຍລາງວັນບໍ່ຕົງ",
       "round.cancel": "ຍົກເລີກງວດ",
       "round.reopen": "ເປີດງວດທີ່ຍົກເລີກຄືນ",
       "round.create": "ສ້າງງວດ",

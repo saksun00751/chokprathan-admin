@@ -45,7 +45,8 @@ type ItemKey =
   | "staff"
   | "audit"
   | "security";
-export type Item = { href: string; key: ItemKey; icon: LucideIcon; need: Permission | null; badge?: "finance" | "results" };
+/** `also`: a second permission that opens the item on its own. */
+export type Item = { href: string; key: ItemKey; icon: LucideIcon; need: Permission | null; also?: Permission; badge?: "finance" | "results" };
 
 /** The back-office menu; labels come from the admin dictionary. `need: null` items are open to every staff member. */
 export const NAV_GROUPS: { key: "overview" | "lotto" | "members" | "marketing" | "system"; items: Item[] }[] = [
@@ -60,7 +61,7 @@ export const NAV_GROUPS: { key: "overview" | "lotto" | "members" | "marketing" |
     key: "lotto",
     items: [
       { href: "/rounds", key: "rounds", icon: CalendarClock, need: "rounds.view" },
-      { href: "/results", key: "results", icon: ClipboardCheck, need: "rounds.result", badge: "results" },
+      { href: "/results", key: "results", icon: ClipboardCheck, need: "rounds.result", also: "rounds.confirm", badge: "results" },
       { href: "/risk", key: "risk", icon: Gauge, need: "risk.manage" },
       { href: "/lottos", key: "lottos", icon: Ticket, need: "lottos.manage" },
       { href: "/games", key: "games", icon: Gamepad2, need: "games.manage" },

@@ -44,4 +44,4 @@ export function Figure({ label, children, hint, tone }: { label: string; childre
 }
 
 /** Badge tone per round phase; the words come from the admin dictionary (shell.phase). */
-export const PHASE_TONE = { upcoming: "neutral", open: "success", closed: "warning", resulted: "brand", cancelled: "outline" } as const;
+export const PHASE_TONE = { upcoming: "neutral", open: "success", closed: "warning", confirming: "warning", resulted: "brand", cancelled: "outline" } as const;

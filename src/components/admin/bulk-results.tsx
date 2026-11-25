@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Flag } from "@/components/ui/flag";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { setResultsBulkAction } from "@/server/actions/admin";
+import { enterResultsBulkAction } from "@/server/actions/admin";
 
-type Row = { id: number; lotto: string; shortName: string; flag: string | null; format: ResultFormat; label: string; closesAt: number; bills: number };
+type Row = { id: number; lotto: string; shortName: string; flag: string | null; format: ResultFormat; label: string; closesAt: number; late: boolean; bills: number };
 const cell =
   "tnum h-10 w-full min-w-0 rounded-control border border-line-strong bg-surface px-2 text-center text-base font-semibold tracking-[0.15em] focus-visible:border-brand";
 
@@ -70,7 +70,7 @@ export function BulkResults({ rows }: { rows: Row[] }) {
         });
         if (!answer.ok) return;
         start(async () => {
-          const r = await setResultsBulkAction(ready.map((x) => ({ roundId: x.id, input: resultInput(x.format, get(x.id)) })));
+          const r = await enterResultsBulkAction(ready.map((x) => ({ roundId: x.id, input: resultInput(x.format, get(x.id)) })));
           if (!r.ok) return toast.error(r.error);
           setErrors(Object.fromEntries(r.data.errors.map((x) => [x.roundId, x.error])));
           if (r.data.errors.length) toast.error(r.message ?? br.someFailed);
@@ -94,6 +94,7 @@ export function BulkResults({ rows }: { rows: Row[] }) {
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-ink">
                       {r.shortName} <span className="font-normal text-ink-2">{r.label}</span>
+                      {r.late && <span className="ml-2 text-xs font-semibold text-danger">{t.admin.ops.confirmResult.late}</span>}
                     </p>
                     <p className="text-xs text-ink-3">{fmt(br.meta, { time: formatDateTime(r.closesAt, lang), n: formatNumber(r.bills) })}</p>
                   </div>

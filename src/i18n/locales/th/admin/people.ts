@@ -244,6 +244,11 @@ export const people = {
     },
     actions: {
       "round.result": "กรอกผลรางวัล",
+      "round.result.enter": "กรอกผลรอยืนยัน",
+      "round.result.mismatch": "ยืนยันผลไม่ตรง",
+      "round.result.reject": "ตีกลับผลรางวัล",
+      "round.close": "ปิดรับก่อนเวลา",
+      "settlement.mismatch": "ยอดจ่ายรางวัลไม่ตรง",
       "round.cancel": "ยกเลิกงวด",
       "round.reopen": "เปิดงวดที่ยกเลิกกลับมา",
       "round.create": "สร้างงวด",

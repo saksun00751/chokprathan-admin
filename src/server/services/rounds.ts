@@ -15,7 +15,7 @@ import { settlePending } from "./settlement";
 import { getLotto, listLottos, type Lotto } from "./lottos";
 
 export type RoundStatus = "scheduled" | "pending_confirm" | "resulted" | "cancelled";
-export type RoundPhase = "upcoming" | "open" | "closed" | "resulted" | "cancelled";
+export type RoundPhase = "upcoming" | "open" | "closed" | "confirming" | "resulted" | "cancelled";
 
 export interface Round {
   id: number;
@@ -65,6 +65,7 @@ export function toRound(r: RoundRow): Round {
 export function phaseOf(r: Pick<Round, "opensAt" | "closesAt" | "status">, now: number): RoundPhase {
   if (r.status === "cancelled") return "cancelled";
   if (r.status === "resulted") return "resulted";
+  if (r.status === "pending_confirm") return "confirming";
   if (now < r.opensAt) return "upcoming";
   if (now < r.closesAt) return "open";
   return "closed";
@@ -287,20 +288,31 @@ async function reopenScheduleCancelled(lotto: Lotto, plan: Map<number, Planned>,
 
 export type SetResultOutcome ={ ok: true; result: RoundResult } | { ok: false; error: string };
 
-function invalidateRoundViews(roundId: number) {
+export function invalidateRoundViews(roundId: number) {
   const keys = ["lobby", "results", `limits:${roundId}`];
   invalidate(...keys);
   afterCommit(() => invalidate(...keys));
 }
 
-/** Record a result, then pay every bill. Paying runs in chunks and resumes after a crash. */
-export async function setResult(roundId: number, input: ResultInput, actorId: number | null, now = Date.now()): Promise<SetResultOutcome> {
+/** Pay a round whose result is stored (or refund a cancelled one), and settle its point guesses. */
+export async function payRound(roundId: number, now = Date.now()) {
+  await settlePending(roundId, now);
+  // Point guesses on this round; if this fails the scheduler retries it.
+  await settleGuesses(roundId, now).catch((error) => console.error("[rounds] guess settlement failed:", error instanceof Error ? error.message : error));
+}
+
+/**
+ * The house game draws itself: no second person, confirmed as the system. Every other lottery's
+ * result goes through `services/results`.
+ */
+export async function drawResult(roundId: number, input: ResultInput, now = Date.now()): Promise<SetResultOutcome> {
   const { t } = await serverI18n();
   const e = t.errors;
   const round = await getRound(roundId);
   if (!round) return { ok: false, error: e.rounds.notFound };
   const lotto = await getLotto(round.lottoId);
   if (!lotto) return { ok: false, error: e.rounds.lottoNotFound };
+  if (!lotto.autoResult) return { ok: false, error: e.rounds.notSelfDrawn };
   const derived = deriveResult(lotto.format, input, e.result);
   if (!derived.ok) return derived;
 
@@ -308,24 +320,22 @@ export async function setResult(roundId: number, input: ResultInput, actorId: nu
     const locked = await q1<RoundRow>("SELECT * FROM rounds WHERE id = ? FOR UPDATE", roundId);
     if (!locked) return { ok: false, error: e.rounds.notFound };
     if (locked.status === "cancelled") return { ok: false, error: e.rounds.cancelled };
-    if (locked.status === "resulted") return { ok: false, error: e.rounds.resulted };
+    // A result typed by staff and waiting for confirmation is left to them.
     if (locked.status !== "scheduled") return { ok: false, error: e.rounds.resulted };
     if (now < locked.closes_at) return { ok: false, error: e.rounds.notClosed };
     await run(
-      "UPDATE rounds SET status = 'resulted', result = ?, resulted_at = ?, resulted_by = ? WHERE id = ?",
+      "INSERT INTO round_results (round_id, result, status, entered_at, confirmed_at) VALUES (?, ?, 'confirmed', ?, ?)",
+      roundId,
       json.str(derived.result),
       now,
-      actorId,
-      roundId,
+      now,
     );
-    if (actorId !== null) await audit(actorId, "round.result", `round:${roundId}`, derived.result, now);
+    await run("UPDATE rounds SET status = 'resulted', result = ?, resulted_at = ?, resulted_by = NULL WHERE id = ?", json.str(derived.result), now, roundId);
     return { ok: true, result: derived.result };
   });
   if (!marked.ok) return marked;
   invalidateRoundViews(roundId);
-  await settlePending(roundId, now);
-  // Point guesses on this round; if this fails the scheduler retries it.
-  await settleGuesses(roundId, now).catch((error) => console.error("[rounds] guess settlement failed:", error instanceof Error ? error.message : error));
+  await payRound(roundId, now);
   return marked;
 }
 
@@ -341,8 +351,10 @@ export async function cancelRound(
   const marked = await tx(async () => {
     const locked = await q1<RoundRow>("SELECT * FROM rounds WHERE id = ? FOR UPDATE", roundId);
     if (!locked) return { ok: false as const, error: e.rounds.notFound };
-    if (locked.status !== "scheduled") return { ok: false as const, error: e.rounds.done };
+    if (locked.status !== "scheduled" && locked.status !== "pending_confirm") return { ok: false as const, error: e.rounds.done };
     await run("UPDATE rounds SET status = 'cancelled', resulted_at = ?, resulted_by = ? WHERE id = ?", now, actorId, roundId);
+    // A result still waiting for confirmation will never be used.
+    if (locked.status === "pending_confirm") await run("UPDATE round_results SET status = 'superseded' WHERE round_id = ? AND status = 'pending'", roundId);
     await audit(actorId, "round.cancel", `round:${roundId}`, detail, now);
     return { ok: true as const };
   });
@@ -408,7 +420,7 @@ export async function autoResults(now: number, limit = 200): Promise<number> {
   let drawn = 0;
   for (const r of due) {
     try {
-      if ((await setResult(r.id, randomResult(r.format), null, now)).ok) drawn++;
+      if ((await drawResult(r.id, randomResult(r.format), now)).ok) drawn++;
     } catch (error) {
       logRoundFailure("auto result", r.id, error);
     }
