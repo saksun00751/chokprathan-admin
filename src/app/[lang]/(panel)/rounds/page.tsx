@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { CreateRound } from "@/components/admin/create-round";
 import { PHASE_TONE, Table, Td, Th } from "@/components/admin/ui";
 import { Flag } from "@/components/ui/flag";
 import { Badge, Money, PageHeader, Skeleton } from "@/components/ui/primitives";
@@ -29,12 +30,13 @@ async function RoundsBody({ searchParams }: Pick<PageProps<"/[lang]/rounds">, "s
   const sp = await searchParams;
   const lottoId = typeof sp.lotto === "string" && sp.lotto ? Number(sp.lotto) : undefined;
   const phase = PHASES.find((p) => p === sp.phase) ?? "all";
-  const [{ day, rounds, lottos }, { t }] = await Promise.all([getAdminRounds({ day: typeof sp.day === "string" ? sp.day : undefined, lottoId, phase }), getI18n()]);
+  const [{ day, rounds, lottos, creatable, serverNow }, { t }] = await Promise.all([getAdminRounds({ day: typeof sp.day === "string" ? sp.day : undefined, lottoId, phase }), getI18n()]);
   const ro = t.admin.ops.rounds;
   const phases = t.admin.shell.phase;
 
   return (
     <>
+      {creatable.length > 0 && <CreateRound lottos={creatable} serverNow={serverNow} />}
       <form className="mb-5 flex flex-wrap items-end gap-3 rounded-card border border-line bg-surface p-4" method="get">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs text-ink-3">{ro.day}</span>

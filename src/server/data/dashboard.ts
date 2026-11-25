@@ -1,11 +1,13 @@
 import "server-only";
 import { io } from "next/cache";
+import { SELF_DRAWN_SQL } from "@/domain/auto-result";
 import { maskPhone } from "@/domain/banks";
 import { previousRange, resolveRange, type DateRange } from "@/domain/periods";
 import { BKK_OFFSET_MS } from "@/domain/time";
-import type { LottoGroup } from "@/domain/types";
+import { groupName } from "@/domain/lotto-groups";
 import { q, q1 } from "@/server/db";
 import { can } from "@/server/services/employee-auth";
+import { listGroups } from "@/server/services/lotto-groups";
 import { listLottos } from "@/server/services/lottos";
 import { limitsForRounds } from "@/server/services/risk";
 import type { Locale } from "@/i18n/config";
@@ -44,14 +46,19 @@ function series(r: DateRange, s: RangeStats, lang: Locale) {
 export type DashboardSeries = ReturnType<typeof series>;
 
 async function breakdowns(s: RangeStats, t: Dict) {
-  const [lottos, top] = await Promise.all([listLottos({ includeDisabled: true }), s.users({ bettorsOnly: true, sortBy: "stake", limit: 10 })]);
+  const [lottos, top, lottoGroups, { lang }] = await Promise.all([
+    listLottos({ includeDisabled: true }),
+    s.users({ bettorsOnly: true, sortBy: "stake", limit: 10 }),
+    listGroups(),
+    getI18n(),
+  ]);
   const totals = sumLottos(s.days);
   const people = await usersById(top.map((p) => p.u));
-  const groupOf = new Map(lottos.map((l) => [l.id, l.group as LottoGroup]));
+  const groupOf = new Map(lottos.map((l) => [l.id, l.group]));
   return {
-    groups: (["thai", "foreign", "stock", "yiki"] as LottoGroup[]).map((g) => {
-      const inGroup = [...totals].filter(([id]) => groupOf.get(id) === g).map(([, x]) => x);
-      return { group: g, label: t.lotto.groups[g], stake: inGroup.reduce((a, x) => a + x.stake, 0), bills: inGroup.reduce((a, x) => a + x.bills, 0) };
+    groups: lottoGroups.map((g) => {
+      const inGroup = [...totals].filter(([id]) => groupOf.get(id) === g.code).map(([, x]) => x);
+      return { group: g.code, label: groupName(g, lang, t.lotto.groups), stake: inGroup.reduce((a, x) => a + x.stake, 0), bills: inGroup.reduce((a, x) => a + x.bills, 0) };
     }),
     topLottos: [...totals]
       .sort(([ia, a], [ib, b]) => b.stake - a.stake || ia - ib)
@@ -83,7 +90,7 @@ async function liveRisk(now: number, lang: Locale, t: Dict) {
     ),
     q<{ id: number; lotto_id: number; round_no: number | null; closes_at: number }>(
       `SELECT r.id, r.lotto_id, r.round_no, r.closes_at FROM rounds r JOIN lottos l ON l.id = r.lotto_id
-       WHERE r.status = 'scheduled' AND r.closes_at <= ? AND l.auto_result = 0 ORDER BY r.closes_at LIMIT 10`,
+       WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL} ORDER BY r.closes_at LIMIT 10`,
       now,
     ),
   ]);
@@ -153,7 +160,7 @@ async function health(now: number, t: Dict): Promise<HealthCheck[]> {
     q1<{ n: number }>("SELECT COUNT(*) AS n FROM rounds WHERE status IN ('resulted','cancelled') AND settled_at IS NULL"),
     q1<{ n: number }>(
       `SELECT COUNT(*) AS n FROM rounds r JOIN lottos l ON l.id = r.lotto_id
-       WHERE r.status = 'scheduled' AND l.auto_result = 1 AND r.draw_at < ?`,
+       WHERE r.status = 'scheduled' AND ${SELF_DRAWN_SQL} AND r.draw_at < ?`,
       now - 5 * 60_000,
     ),
   ]);

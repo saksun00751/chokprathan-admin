@@ -1,13 +1,17 @@
 "use client";
 
 import { useI18n } from "@/i18n/client";
-import type { Dict } from "@/i18n/dictionaries";
 import { fmt, formatNumber } from "@/i18n/format";
+import { Search } from "lucide-react";
 import { useState, useTransition } from "react";
+import { mayAutoResult } from "@/domain/auto-result";
 import { betTypesFor } from "@/domain/betTypes";
 import { formatRate } from "@/domain/money";
+import { byGroup, groupName, mayMoveGroup, type LottoGroupInfo } from "@/domain/lotto-groups";
+import { matchesLotto } from "@/domain/new-lotto";
 import type { BetTypeCode, RiskProfile, Schedule } from "@/domain/types";
 import { Badge } from "@/components/ui/primitives";
+import { Input } from "@/components/ui/field";
 import { useConfirm } from "@/components/admin/confirm";
 import { changedRows } from "@/domain/confirm";
 import { Button } from "@/components/ui/button";
@@ -16,47 +20,94 @@ import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { saveLottoAction } from "@/server/actions/admin";
 import type { Lotto } from "@/server/services/lottos";
+import { ScheduleFields, scheduleText, TextField } from "./schedule-fields";
 import { TierEditor } from "./tier-editor";
 
-function scheduleText(s: Schedule, t: Dict) {
-  const lo = t.admin.ops.lottos;
-  const opens = s.opens ? ` · ${fmt(lo.opensShort, { time: s.opens })}` : "";
-  if (s.kind === "interval") return fmt(lo.interval, { every: s.everyMin, count: s.count, first: s.firstClose }) + opens;
-  if (s.kind === "monthly") return fmt(lo.monthly, { days: s.days.join(", "), close: s.close }) + opens;
-  return fmt(lo.weekly, { days: s.days.length === 7 ? lo.everyDay : s.days.map((d) => t.lotto.weekdays[d]).join(" "), close: s.close }) + opens;
-}
+const TABS = ["general", "schedule", "rates"] as const;
+type Tab = (typeof TABS)[number];
 
-export function LottoList({ lottos, rates, risk }: { lottos: Lotto[]; rates: Record<BetTypeCode, number>; risk: Record<BetTypeCode, RiskProfile> }) {
-  const { t } = useI18n();
+type Shared = { groups: LottoGroupInfo[]; rates: Record<BetTypeCode, number>; risk: Record<BetTypeCode, RiskProfile> };
+
+export function LottoList({ lottos, ...shared }: Shared & { lottos: Lotto[] }) {
+  const { lang, t } = useI18n();
   const lo = t.admin.ops.lottos;
+  const [picked, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const sections = byGroup(lottos, shared.groups);
+  const labelOf = (g: LottoGroupInfo) => groupName(g, lang, t.lotto.groups);
+  // The picked group can empty out (its last lottery moved away or it was deleted).
+  const filter = sections.some((s) => s.group.code === picked) ? picked : "all";
+  const chips = [
+    { id: "all", label: t.common.all, count: lottos.length },
+    ...sections.map((s) => ({ id: s.group.code, label: labelOf(s.group), count: s.lottos.length })),
+  ];
+  const shown = sections.filter((s) => filter === "all" || filter === s.group.code);
+  const found = new Set(shown.flatMap((s) => s.lottos.filter((l) => matchesLotto(l, query))).map((l) => l.id));
   return (
-    <ul className="flex flex-col gap-2">
-      {lottos.map((l) => (
-        <li key={l.id}>
-          <details className="group rounded-card border border-line bg-surface shadow-card open:shadow-float">
-            <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
-              <Flag code={l.flag} className="size-7" />
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{l.name}</span>
-                <span className="block text-xs text-ink-3">
-                  {t.lotto.groups[l.group]} · {scheduleText(l.schedule, t)}
-                </span>
-              </span>
-              {!l.enabled && <Badge tone="outline">{lo.off}</Badge>}
-              {l.autoResult ? <Badge tone="brand">{lo.autoResult}</Badge> : <Badge>{lo.manualResult}</Badge>}
-              {Object.keys(l.risk).length > 0 && <Badge tone="warning">{lo.customRisk}</Badge>}
-              <span className="text-sm font-semibold text-brand group-open:hidden">{lo.edit}</span>
-            </summary>
-            <LottoForm lotto={l} rates={rates} risk={risk} />
-          </details>
-        </li>
+    <div className="flex flex-col gap-5">
+      <div className="relative sm:max-w-sm">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+        <Input type="search" aria-label={lo.search} placeholder={lo.search} value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+      </div>
+      <div className="flex flex-wrap gap-2 text-sm">
+        {chips.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            aria-pressed={filter === c.id}
+            onClick={() => setFilter(c.id)}
+            className={cn("h-9 rounded-full px-3.5 font-medium", filter === c.id ? "bg-ink text-white" : "bg-surface text-ink-2 shadow-card")}
+          >
+            {c.label} <span className="tnum">{c.count}</span>
+          </button>
+        ))}
+      </div>
+      {sections.map((s) => (
+        // Hidden rather than removed, so a form keeps what was typed but not saved yet.
+        <section key={s.group.code} hidden={!s.lottos.some((l) => found.has(l.id))} aria-labelledby={`lotto-group-${s.group.code}`}>
+          <h2 id={`lotto-group-${s.group.code}`} className="mb-2 text-sm font-semibold text-ink-2">
+            {labelOf(s.group)} ({s.lottos.length})
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {s.lottos.map((l) => (
+              <LottoItem key={l.id} lotto={l} hidden={!found.has(l.id)} {...shared} />
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+      {found.size === 0 && <p className="py-6 text-center text-sm text-ink-3">{lo.noMatch}</p>}
+    </div>
   );
 }
 
-function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetTypeCode, number>; risk: Record<BetTypeCode, RiskProfile> }) {
+function LottoItem({ lotto: l, hidden, ...shared }: Shared & { lotto: Lotto; hidden: boolean }) {
   const { t } = useI18n();
+  const lo = t.admin.ops.lottos;
+  return (
+    <li hidden={hidden}>
+      <details className="group rounded-card border border-line bg-surface shadow-card open:shadow-float">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
+          <Flag code={l.flag} className="size-7" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{l.name}</span>
+            <span className="block text-xs text-ink-3">
+              {scheduleText(l.schedule, t)}
+            </span>
+          </span>
+          {!l.enabled && <Badge tone="outline">{lo.off}</Badge>}
+          {!l.autoRounds && <Badge tone="warning">{lo.manualRounds}</Badge>}
+          {l.autoResult ? <Badge tone="brand">{lo.autoResult}</Badge> : <Badge>{lo.manualResult}</Badge>}
+          {Object.keys(l.risk).length > 0 && <Badge tone="warning">{lo.customRisk}</Badge>}
+          <span className="text-sm font-semibold text-brand group-open:hidden">{lo.edit}</span>
+        </summary>
+        <LottoForm lotto={l} {...shared} />
+      </details>
+    </li>
+  );
+}
+
+function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
+  const { lang, t } = useI18n();
   const lo = t.admin.ops.lottos;
   const k = t.admin.shell.confirm;
   const ask = useConfirm();
@@ -66,8 +117,10 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
   const [saved, setSaved] = useState({
     name: lotto.name,
     shortName: lotto.shortName,
+    group: lotto.group,
     enabled: lotto.enabled,
     autoResult: lotto.autoResult,
+    autoRounds: lotto.autoRounds,
     resultDelayMin: lotto.resultDelayMin,
     schedule: lotto.schedule,
     rates: lotto.rates as Partial<Record<BetTypeCode, number>>,
@@ -75,8 +128,10 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
   });
   const [name, setName] = useState(lotto.name);
   const [shortName, setShortName] = useState(lotto.shortName);
+  const [group, setGroup] = useState(lotto.group);
   const [enabled, setEnabled] = useState(lotto.enabled);
   const [autoResult, setAutoResult] = useState(lotto.autoResult);
+  const [autoRounds, setAutoRounds] = useState(lotto.autoRounds);
   const [delay, setDelay] = useState(lotto.resultDelayMin);
   const [schedule, setSchedule] = useState<Schedule>(lotto.schedule);
   const [rateText, setRateText] = useState<Partial<Record<BetTypeCode, string>>>(() =>
@@ -84,6 +139,7 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
   );
   const [customRisk, setCustomRisk] = useState<Partial<Record<BetTypeCode, RiskProfile>>>(lotto.risk);
   const codes = betTypesFor(lotto.format);
+  const [tab, setTab] = useState<Tab>("general");
 
   return (
     <form
@@ -98,11 +154,17 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
         const onOff = (b: boolean) => (b ? t.common.on : t.common.off);
         const tierLabel = (c: BetTypeCode) => `${t.lotto.betTypes[c].label} · ${lo.customTiers}`;
         const tierRows = new Set(codes.map(tierLabel));
+        const labelOfCode = (code: string) => {
+          const g = groups.find((x) => x.code === code);
+          return g ? groupName(g, lang, t.lotto.groups) : code;
+        };
         const rows = changedRows<string>([
           { label: lo.name, before: saved.name, after: name },
           { label: lo.shortName, before: saved.shortName, after: shortName },
+          { label: lo.groups.field, before: labelOfCode(saved.group), after: labelOfCode(group) },
           { label: lo.enabled, before: onOff(saved.enabled), after: onOff(enabled) },
           { label: lo.autoResult, before: onOff(saved.autoResult), after: onOff(autoResult) },
+          { label: lo.autoRounds, before: onOff(saved.autoRounds), after: onOff(autoRounds) },
           { label: lo.delay, before: String(saved.resultDelayMin), after: String(delay) },
           { label: lo.schedule, before: scheduleText(saved.schedule, t), after: scheduleText(schedule, t) },
           ...codes.flatMap((c) => [
@@ -130,7 +192,7 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
           note: k.saveRiskNote,
         });
         if (!answer.ok) return;
-        const next = { name, shortName, enabled, autoResult, resultDelayMin: delay, schedule, rates: overrideRates, risk: customRisk };
+        const next = { name, shortName, group, enabled, autoResult, autoRounds, resultDelayMin: delay, schedule, rates: overrideRates, risk: customRisk };
         start(async () => {
           const r = await saveLottoAction(lotto.id, next);
           if (r.ok) {
@@ -140,10 +202,73 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
         });
       }}
     >
+      <div role="tablist" aria-label={shortName} className="no-scrollbar flex gap-1 self-start overflow-x-auto rounded-control bg-panel p-1 max-sm:self-stretch">
+        {TABS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={cn("h-9 shrink-0 rounded-[8px] px-3 text-sm font-medium", tab === id ? "bg-surface text-ink shadow-card" : "text-ink-2 hover:text-ink")}
+          >
+            {lo.tabs[id]}
+          </button>
+        ))}
+      </div>
+
+      {/* Panels are hidden rather than removed: one save button covers all three. */}
+      <div role="tabpanel" hidden={tab !== "general"}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <TextField label={lo.name} value={name} onChange={setName} />
         <TextField label={lo.shortName} value={shortName} onChange={setShortName} />
         <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs text-ink-3">{lo.groups.field}</span>
+          <select
+            value={group}
+            // Yiki is locked: nothing moves in or out.
+            disabled={!mayMoveGroup(lotto.group, "")}
+            onChange={(e) => setGroup(e.target.value)}
+            className="h-10 rounded-control border border-line-strong bg-surface px-3"
+          >
+            {groups
+              .filter((g) => mayMoveGroup(lotto.group, g.code))
+              .map((g) => (
+                <option key={g.code} value={g.code}>
+                  {groupName(g, lang, t.lotto.groups)}
+                </option>
+              ))}
+          </select>
+        </label>
+        <div className="flex flex-col justify-end gap-2 text-sm">
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />{" "}
+            {lo.enabled}
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={autoResult}
+              disabled={!mayAutoResult(lotto.group)}
+              onChange={(e) => setAutoResult(e.target.checked)}
+              className="size-4 accent-[var(--color-brand)]"
+            />{" "}
+            {lo.autoResult}
+          </label>
+          {!mayAutoResult(lotto.group) && <p className="text-xs text-ink-3">{lo.autoOnlyYiki}</p>}
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={autoRounds} onChange={(e) => setAutoRounds(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />{" "}
+            {lo.autoRounds}
+          </label>
+          {!autoRounds && <p className="text-xs text-ink-3">{lo.autoRoundsOffNote}</p>}
+        </div>
+      </div>
+
+      </div>
+
+      <div role="tabpanel" hidden={tab !== "schedule"} className={cn("flex-col gap-3", tab === "schedule" && "flex")}>
+        <ScheduleFields schedule={schedule} onChange={setSchedule} note={lo.scheduleNote} />
+        <label className="flex max-w-60 flex-col gap-1 text-sm">
           <span className="text-xs text-ink-3">{lo.delay}</span>
           <input
             inputMode="numeric"
@@ -152,95 +277,9 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
             className="tnum h-10 rounded-control border border-line-strong px-3 text-right"
           />
         </label>
-        <div className="flex flex-col justify-end gap-2 text-sm">
-          <label className="inline-flex items-center gap-2">
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />{" "}
-            {lo.enabled}
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input type="checkbox" checked={autoResult} onChange={(e) => setAutoResult(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />{" "}
-            {lo.autoResult}
-          </label>
-        </div>
       </div>
 
-      <fieldset className="rounded-control bg-panel p-4">
-        <legend className="sr-only">{lo.schedule}</legend>
-        <p className="mb-3 text-sm font-semibold">{lo.schedule}</p>
-        {schedule.kind === "interval" ? (
-          <div className="flex flex-wrap gap-3">
-            <TextField label={lo.firstClose} value={schedule.firstClose} onChange={(v) => setSchedule({ ...schedule, firstClose: v })} type="time" />
-            <NumberField label={lo.everyMin} value={schedule.everyMin} onChange={(v) => setSchedule({ ...schedule, everyMin: v })} />
-            <NumberField label={lo.count} value={schedule.count} onChange={(v) => setSchedule({ ...schedule, count: v })} />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2 text-sm">
-              {(["weekly", "monthly"] as const).map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() =>
-                    setSchedule(kind === "weekly" ? { kind, days: [1, 2, 3, 4, 5], close: schedule.close, opens: schedule.opens } : { kind, days: [1, 16], close: schedule.close, opens: schedule.opens })
-                  }
-                  className={cn("h-9 rounded-full px-3 font-medium", schedule.kind === kind ? "bg-ink text-white" : "bg-surface text-ink-2")}
-                >
-                  {kind === "weekly" ? lo.byWeekday : lo.byMonthDay}
-                </button>
-              ))}
-            </div>
-            {schedule.kind === "weekly" ? (
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label={lo.drawDays}>
-                {t.lotto.weekdays.map((label, d) => {
-                  const on = schedule.days.includes(d);
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => setSchedule({ ...schedule, days: on ? schedule.days.filter((x) => x !== d) : [...schedule.days, d].sort() })}
-                      className={cn("h-9 w-11 rounded-control text-sm font-semibold", on ? "bg-brand text-white" : "bg-surface text-ink-2")}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <TextField
-                label={lo.monthDays}
-                value={schedule.days.join(",")}
-                onChange={(v) =>
-                  setSchedule({
-                    ...schedule,
-                    days: v
-                      .split(",")
-                      .map((x) => Number(x.trim()))
-                      .filter((n) => n >= 1 && n <= 31),
-                  })
-                }
-              />
-            )}
-            <TextField label={lo.closeTime} value={schedule.close} onChange={(v) => setSchedule({ ...schedule, close: v })} type="time" />
-          </div>
-        )}
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={schedule.opens !== undefined}
-              onChange={(e) => setSchedule(e.target.checked ? { ...schedule, opens: "00:00" } : { ...schedule, opens: undefined })}
-              className="size-4 accent-[var(--color-brand)]"
-            />
-            {lo.opensCustom}
-          </label>
-          {schedule.opens !== undefined && <TextField label={lo.opensTime} value={schedule.opens} onChange={(v) => setSchedule({ ...schedule, opens: v })} type="time" />}
-        </div>
-        <p className="mt-1 text-xs text-ink-3">{lo.opensNote}</p>
-        <p className="mt-3 text-xs text-ink-3">{lo.scheduleNote}</p>
-      </fieldset>
-
-      <div>
+      <div role="tabpanel" hidden={tab !== "rates"}>
         <p className="mb-2 text-sm font-semibold">{lo.ratesTitle}</p>
         <ul className="flex flex-col gap-3">
           {codes.map((code) => {
@@ -300,28 +339,5 @@ function LottoForm({ lotto, rates, risk }: { lotto: Lotto; rates: Record<BetType
         </Button>
       </div>
     </form>
-  );
-}
-
-function TextField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-xs text-ink-3">{label}</span>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="h-10 rounded-control border border-line-strong bg-surface px-3" />
-    </label>
-  );
-}
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-xs text-ink-3">{label}</span>
-      <input
-        inputMode="numeric"
-        value={String(value)}
-        onChange={(e) => onChange(Number(e.target.value.replace(/\D/g, "")) || 0)}
-        className="tnum h-10 w-28 rounded-control border border-line-strong bg-surface px-3 text-right"
-      />
-    </label>
   );
 }

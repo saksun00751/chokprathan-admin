@@ -1,5 +1,10 @@
 "use server";
 
+import { mayAutoResult } from "@/domain/auto-result";
+import { FLAG_CODES, isLottoSlug } from "@/domain/new-lotto";
+import { parseBkkLocal } from "@/domain/round-input";
+import { isBuiltinGroup, isGroupArt, mayMoveGroup } from "@/domain/lotto-groups";
+import { createGroup, deleteGroup, listGroups, moveGroup, updateGroup } from "@/server/services/lotto-groups";
 import { guessProblem, wheelProblem, type ActivitySettings } from "@/domain/activities";
 import { isBlockKind } from "@/domain/blocklist";
 import { BANKS } from "@/domain/banks";
@@ -20,7 +25,7 @@ import { validateProfile } from "@/domain/pricing";
 import { isThemeId } from "@/domain/themes";
 import type { BetTypeCode, ManualLimit, RiskProfile, Schedule } from "@/domain/types";
 import type { ActionResult } from "@/lib/action";
-import { json, q1, run, tx } from "@/server/db";
+import { json, q1, run, tx, tolerateMissingTable, tolerateMissingColumn } from "@/server/db";
 import type { BetLimits, RewardSettings, SiteSettings, WalletSettings } from "@/server/catalog";
 import { clientInfo } from "@/server/request";
 import { InsufficientPointsError, awardPoints, movePoints, pointsNotMigrated } from "@/server/services/points";
@@ -31,10 +36,10 @@ import { deleteBanner, moveBanner, saveBanner, setBannerImage } from "@/server/s
 import { adjustBankAccount, archiveBankAccount, saveBankAccount, type BankAccountInput, type BankError } from "@/server/services/banks";
 import { approveDeposit, approveWithdrawal, rejectDeposit, rejectWithdrawal } from "@/server/services/finance";
 import { closeMember, reopenMember, updateMember, type MemberEdit, type MemberEditError } from "@/server/services/members";
-import { getLotto, invalidateLottos, listLottos } from "@/server/services/lottos";
+import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/services/lottos";
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
-import { cancelRound, reconcileRounds, setResult } from "@/server/services/rounds";
+import { cancelRound, reconcileRounds, setResult, createRound } from "@/server/services/rounds";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
 import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
 import { InsufficientFundsError, move } from "@/server/services/wallet";
@@ -115,6 +120,25 @@ export async function cancelRoundAction(roundId: number): Promise<ActionResult> 
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
   const r = await cancelRound(roundId, g.viewer.id);
   return r.ok ? done(fmt(g.e.admin.roundCancelled, { n: r.refunded ?? 0 })) : { ok: false, error: r.error ?? g.e.admin.cannotCancel };
+}
+
+const createRoundSchema = z.object({ lottoId: z.number().int().positive(), opens: z.string(), closes: z.string(), draw: z.string() });
+
+/** Create one round by hand. Times are Bangkok "YYYY-MM-DDTHH:MM"; an empty draw time uses the lottery's delay. */
+export async function createRoundAction(input: unknown): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  const parsed = createRoundSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: g.e.generic.invalid };
+  const v = parsed.data;
+  const lotto = await getLotto(v.lottoId);
+  if (!lotto) return { ok: false, error: g.e.admin.roundCreate.lotto };
+  const opensAt = parseBkkLocal(v.opens);
+  const closesAt = parseBkkLocal(v.closes);
+  const drawAt = v.draw ? parseBkkLocal(v.draw) : closesAt === null ? null : closesAt + lotto.resultDelayMin * 60_000;
+  if (opensAt === null || closesAt === null || drawAt === null) return { ok: false, error: g.e.admin.roundCreate.badTime };
+  const r = await createRound(v.lottoId, { opensAt, closesAt, drawAt }, g.viewer.id);
+  return r.ok ? done(g.e.admin.roundCreate.done) : { ok: false, error: g.e.admin.roundCreate[r.error] };
 }
 
 export async function setManualLimitAction(roundId: number, betType: string, number: string, limit: ManualLimit | null): Promise<ActionResult> {
@@ -212,8 +236,10 @@ const scheduleSchema = z
 const lottoSchema = z.object({
   name: z.string().trim().min(2).max(60),
   shortName: z.string().trim().min(1).max(30),
+  group: z.string().min(1).max(40),
   enabled: z.boolean(),
   autoResult: z.boolean(),
+  autoRounds: z.boolean(),
   resultDelayMin: z.number().int().min(0).max(1440),
   schedule: scheduleSchema,
   rates: z.record(z.string(), z.number().int().positive().max(10_000_000)),
@@ -234,11 +260,22 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
     if (problems.length) return { ok: false, error: `${code}: ${problems[0]}` };
   }
   const before = await getLotto(lottoId);
+  if (!(await listGroups()).some((x) => x.code === v.group)) return { ok: false, error: g.e.admin.groupNotFound };
+  if (before && !mayMoveGroup(before.group, v.group)) return { ok: false, error: g.e.admin.groupLocked };
+  if (v.autoResult && !mayAutoResult(v.group)) return { ok: false, error: g.e.admin.autoResultNotAllowed };
+  // Written on its own, and only when switched: the column arrives with member migration 11, and
+  // saving anything else must keep working before it does.
+  const switched = before !== undefined && before.autoRounds !== v.autoRounds;
+  if (switched) {
+    const stored = await tolerateMissingColumn(() => run("UPDATE lottos SET auto_rounds = ? WHERE id = ?", v.autoRounds ? 1 : 0, lottoId), null);
+    if (stored === null) return { ok: false, error: g.e.admin.autoRoundsNeedsMigration };
+  }
   const changed = (
     await run(
-      `UPDATE lottos SET name = ?, short_name = ?, enabled = ?, auto_result = ?, result_delay_min = ?, schedule = ?, rates = ?, risk = ?, updated_at = ? WHERE id = ?`,
+      `UPDATE lottos SET name = ?, short_name = ?, grp = ?, enabled = ?, auto_result = ?, result_delay_min = ?, schedule = ?, rates = ?, risk = ?, updated_at = ? WHERE id = ?`,
       v.name,
       v.shortName,
+      v.group,
       v.enabled ? 1 : 0,
       v.autoResult ? 1 : 0,
       v.resultDelayMin,
@@ -253,10 +290,85 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
   invalidateLottos();
   await audit(g.viewer.id, "lotto.update", `lotto:${lottoId}`, v, Date.now(), g.ip);
   // A new schedule or draw delay must reach rounds already created (only those without bills or guesses).
-  if (!before || json.str(before.schedule) !== json.str(v.schedule) || before.resultDelayMin !== v.resultDelayMin) {
+  if (!before || switched || json.str(before.schedule) !== json.str(v.schedule) || before.resultDelayMin !== v.resultDelayMin) {
     await reconcileRounds(lottoId, g.viewer.id).catch((error) => console.error("[lottos] round reconcile failed:", error instanceof Error ? error.message : error));
   }
   return done(fmt(g.e.admin.lottoSaved, { name: v.shortName }));
+}
+
+const newLottoSchema = lottoSchema.pick({ name: true, shortName: true, group: true, schedule: true, resultDelayMin: true }).extend({
+  slug: z.string().refine(isLottoSlug),
+  format: z.enum(["standard", "thai_gov", "laos4"]),
+  flag: z.enum(FLAG_CODES).nullable(),
+});
+
+export async function createLottoAction(input: unknown): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  const parsed = newLottoSchema.safeParse(input);
+  if (!parsed.success) {
+    const slug = parsed.error.issues.some((i) => i.path[0] === "slug");
+    return { ok: false, error: slug ? g.e.admin.lottoBadSlug : g.e.generic.invalid };
+  }
+  const v = parsed.data;
+  if (!(await listGroups()).some((x) => x.code === v.group)) return { ok: false, error: g.e.admin.groupNotFound };
+  // Yiki is the house game; no other lottery may join it.
+  if (!mayMoveGroup(v.group, "")) return { ok: false, error: g.e.admin.groupLocked };
+  const id = await createLotto({ ...v, schedule: v.schedule as Schedule });
+  if (id === null) return { ok: false, error: g.e.admin.lottoSlugTaken };
+  await audit(g.viewer.id, "lotto.create", `lotto:${id}`, v, Date.now(), g.ip);
+  return done(fmt(g.e.admin.lottoCreated, { name: v.shortName }));
+}
+
+/* ---------- lotto groups ---------- */
+
+const groupSchema = z.object({ name: z.string().trim().max(60), art: z.string().refine(isGroupArt), i18n: z.unknown() });
+
+/** Create (`code` null) or edit a group. A built-in may keep an empty name, which shows the standard label. */
+export async function saveLottoGroupAction(code: string | null, input: unknown): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  const parsed = groupSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: g.e.generic.invalid };
+  const { name, art } = parsed.data;
+  if (!name && !(code !== null && isBuiltinGroup(code))) return { ok: false, error: g.e.admin.groupNameRequired };
+  const values = { name, art, i18n: cleanContentI18n(parsed.data.i18n, { name: 60 }) };
+  // null means the table is not there yet (member migration 10).
+  const saved = await tolerateMissingTable<string | false | null>(
+    async () => (code === null ? createGroup(values) : (await updateGroup(code, values)) && code),
+    null,
+  );
+  if (saved === null) return { ok: false, error: g.e.admin.groupNeedsMigration };
+  if (saved === false) return { ok: false, error: g.e.admin.groupNotFound };
+  invalidateLottos();
+  await audit(g.viewer.id, code === null ? "lotto.group.create" : "lotto.group.update", `lotto-group:${saved}`, values, Date.now(), g.ip);
+  return done(g.e.admin.groupSaved);
+}
+
+export async function deleteLottoGroupAction(code: string): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  if (typeof code !== "string") return { ok: false, error: g.e.admin.groupNotFound };
+  const result = await tolerateMissingTable<Awaited<ReturnType<typeof deleteGroup>> | null>(() => deleteGroup(code), null);
+  if (result !== "ok") {
+    const errors = { builtin: g.e.admin.groupBuiltin, used: g.e.admin.groupUsed, missing: g.e.admin.groupNotFound };
+    return { ok: false, error: result === null ? g.e.admin.groupNeedsMigration : errors[result] };
+  }
+  invalidateLottos();
+  await audit(g.viewer.id, "lotto.group.delete", `lotto-group:${code}`, undefined, Date.now(), g.ip);
+  return done(g.e.admin.groupDeleted);
+}
+
+export async function moveLottoGroupAction(code: string, step: number): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  if (typeof code !== "string" || (step !== -1 && step !== 1)) return { ok: false, error: g.e.generic.invalid };
+  const moved = await tolerateMissingTable<boolean | null>(() => moveGroup(code, step), null);
+  if (moved === null) return { ok: false, error: g.e.admin.groupNeedsMigration };
+  if (!moved) return { ok: false, error: g.e.generic.invalid };
+  invalidateLottos();
+  await audit(g.viewer.id, "lotto.group.move", `lotto-group:${code}`, { step }, Date.now(), g.ip);
+  return done(g.e.admin.groupSaved);
 }
 
 /* ---------- members ---------- */

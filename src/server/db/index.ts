@@ -149,6 +149,16 @@ export async function tolerateMissingTable<T>(fn: () => Promise<T>, fallback: T)
   }
 }
 
+/** Like `tolerateMissingTable`, for a column a newer migration adds. */
+export async function tolerateMissingColumn<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if ((error as { errno?: number }).errno === 1054) return fallback;
+    throw error;
+  }
+}
+
 const RETRYABLE = new Set([1213, 1205]); // deadlock, lock wait timeout
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

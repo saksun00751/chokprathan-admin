@@ -2,7 +2,9 @@ import "server-only";
 import { settleGuesses } from "./activities";
 import { errorsT, serverI18n } from "@/i18n/server";
 import { randomInt } from "node:crypto";
+import { SELF_DRAWN_SQL } from "@/domain/auto-result";
 import { deriveResult, type ResultInput } from "@/domain/match";
+import { roundTimesProblem, type RoundTimes, type RoundTimesProblem } from "@/domain/round-input";
 import { closesForDay, nextClose, opensOnDay, previousClose } from "@/domain/schedule";
 import { DAY, addDays, dayKey, formatThaiDate } from "@/domain/time";
 import type { ResultFormat, RoundResult } from "@/domain/types";
@@ -115,7 +117,7 @@ function plannedRounds(lottos: Lotto[], now: number, daysBack: number, daysAhead
  * all open when the previous day's last round closes. Only missing rounds are inserted.
  */
 export async function ensureRounds(now: number, { daysBack = 1, daysAhead = 1 } = {}): Promise<number> {
-  const lottos = await listLottos();
+  const lottos = (await listLottos()).filter((l) => l.autoRounds);
   const planned = plannedRounds(lottos, now, daysBack, daysAhead);
   if (planned.length === 0) return 0;
   const from = Math.min(...planned.map((p) => p.closesAt));
@@ -145,11 +147,14 @@ export async function ensureRounds(now: number, { daysBack = 1, daysAhead = 1 } 
  * point guesses. Those that match a planned close get their open/draw times (and round number) updated;
  * those the new schedule no longer has are cancelled (admin may not DELETE rounds, and a cancelled
  * round with no bills refunds nothing). Rounds with bills or guesses keep their original times.
+ * A future round an earlier schedule change cancelled is reopened when the plan has it again;
+ * rounds staff cancelled stay cancelled. Rounds staff created are never touched, and a lottery whose
+ * automatic round creation is off keeps every round as it is.
  * Missing rounds of the new plan are created by the `ensureRounds` call at the end.
  */
-export async function reconcileRounds(lottoId: number, actorId: number | null, now = Date.now()): Promise<{ updated: number; cancelled: number; created: number }> {
+export async function reconcileRounds(lottoId: number, actorId: number | null, now = Date.now()): Promise<{ updated: number; cancelled: number; reopened: number; created: number }> {
   const lotto = await getLotto(lottoId);
-  if (!lotto) return { updated: 0, cancelled: 0, created: 0 };
+  if (!lotto?.autoRounds) return { updated: 0, cancelled: 0, reopened: 0, created: 0 };
   const plan = new Map(plannedRounds([lotto], now, 1, 1).map((p) => [p.closesAt, p]));
   const untouched = await q<{ id: number; closes_at: number; round_no: number | null; day_key: string; opens_at: number; draw_at: number }>(
     `SELECT r.id, r.closes_at, r.round_no, r.day_key, r.opens_at, r.draw_at FROM rounds r
@@ -159,12 +164,13 @@ export async function reconcileRounds(lottoId: number, actorId: number | null, n
     lottoId,
     now,
   );
+  const manual = await manualRounds(untouched.map((r) => r.id));
   let updated = 0;
   let cancelled = 0;
-  for (const r of untouched) {
+  for (const r of untouched.filter((x) => !manual.has(x.id))) {
     const want = plan.get(r.closes_at);
     if (!want) {
-      if ((await cancelRound(r.id, actorId, now)).ok) cancelled++;
+      if ((await cancelRound(r.id, actorId, now, { by: "schedule" })).ok) cancelled++;
       continue;
     }
     const drawAt = want.closesAt + lotto.resultDelayMin * 60_000;
@@ -181,9 +187,95 @@ export async function reconcileRounds(lottoId: number, actorId: number | null, n
     );
     updated += changes;
   }
+  const reopened = await reopenScheduleCancelled(lotto, plan, actorId, now);
   const created = await ensureRounds(now);
-  if (updated > 0 || cancelled > 0) invalidate("lobby", "results");
-  return { updated, cancelled, created };
+  if (updated > 0 || cancelled > 0 || reopened > 0) invalidate("lobby", "results");
+  return { updated, cancelled, reopened, created };
+}
+
+/** Which of these rounds staff created by hand: their `round.create` audit entry says so. */
+async function manualRounds(ids: number[]): Promise<Set<number>> {
+  if (ids.length === 0) return new Set();
+  const rows = await q<{ target: string }>(
+    "SELECT target FROM audit_log WHERE action = 'round.create' AND target IN (?)",
+    ids.map((id) => `round:${id}`),
+  );
+  return new Set(rows.map((r) => Number(r.target.slice("round:".length))));
+}
+
+export type CreateRoundOutcome = { ok: true; id: number } | { ok: false; error: "lotto" | "duplicate" | RoundTimesProblem };
+
+/** Create one round by hand. The audit entry is written with it, since `reconcileRounds` relies on it. */
+export async function createRound(lottoId: number, times: RoundTimes, actorId: number, now = Date.now()): Promise<CreateRoundOutcome> {
+  const lotto = await getLotto(lottoId);
+  if (!lotto?.enabled) return { ok: false, error: "lotto" };
+  const problem = roundTimesProblem(times, now);
+  if (problem) return { ok: false, error: problem };
+  const key = dayKey(times.closesAt);
+  const result = await tx(async (): Promise<CreateRoundOutcome> => {
+    // Interval lotteries number their rounds within the day.
+    const roundNo =
+      lotto.schedule.kind === "interval"
+        ? ((await q1<{ n: number | null }>("SELECT MAX(round_no) AS n FROM rounds WHERE lotto_id = ? AND day_key = ? FOR UPDATE", lottoId, key))?.n ?? 0) + 1
+        : null;
+    // IGNORE: (lotto_id, closes_at) is unique, cancelled rounds included.
+    const { changes, lastId } = await run(
+      "INSERT IGNORE INTO rounds (lotto_id, round_no, day_key, opens_at, closes_at, draw_at) VALUES (?, ?, ?, ?, ?, ?)",
+      lottoId,
+      roundNo,
+      key,
+      times.opensAt,
+      times.closesAt,
+      times.drawAt,
+    );
+    if (!changes) return { ok: false, error: "duplicate" };
+    await audit(actorId, "round.create", `round:${lastId}`, { lottoId, ...times }, now);
+    return { ok: true, id: lastId };
+  });
+  if (result.ok) invalidateRoundViews(result.id);
+  return result;
+}
+
+/**
+ * Bring back future rounds that a schedule change cancelled and the plan has again. `ensureRounds`
+ * cannot recreate them: the cancelled row still holds (lotto_id, closes_at). The latest
+ * `round.cancel` audit entry says who cancelled a round, so a staff cancellation is never undone.
+ */
+async function reopenScheduleCancelled(lotto: Lotto, plan: Map<number, Planned>, actorId: number | null, now: number): Promise<number> {
+  const rows = await q<{ id: number; closes_at: number; detail: string | null }>(
+    `SELECT r.id, r.closes_at,
+       (SELECT a.detail FROM audit_log a WHERE a.action = 'round.cancel' AND a.target = CONCAT('round:', r.id) ORDER BY a.id DESC LIMIT 1) AS detail
+     FROM rounds r
+     WHERE r.lotto_id = ? AND r.status = 'cancelled' AND r.settled_at IS NOT NULL AND r.closes_at > ?
+       AND NOT EXISTS (SELECT 1 FROM bills b WHERE b.round_id = r.id)
+       AND NOT EXISTS (SELECT 1 FROM point_guesses g WHERE g.round_id = r.id)`,
+    lotto.id,
+    now,
+  );
+  let reopened = 0;
+  for (const r of rows) {
+    const want = plan.get(r.closes_at);
+    if (!want || json.parse<{ by?: string } | null>(r.detail, null)?.by !== "schedule") continue;
+    const changed = await tx(async () => {
+      const { changes } = await run(
+        `UPDATE rounds SET status = 'scheduled', resulted_at = NULL, resulted_by = NULL, settled_at = NULL,
+           opens_at = ?, draw_at = ?, round_no = ?, day_key = ?
+         WHERE id = ? AND status = 'cancelled' AND NOT EXISTS (SELECT 1 FROM bills b WHERE b.round_id = rounds.id)`,
+        want.opensAt,
+        want.closesAt + lotto.resultDelayMin * 60_000,
+        want.roundNo,
+        want.key,
+        r.id,
+      );
+      if (changes) await audit(actorId, "round.reopen", `round:${r.id}`, undefined, now);
+      return changes;
+    });
+    if (changed) {
+      reopened++;
+      invalidateRoundViews(r.id);
+    }
+  }
+  return reopened;
 }
 
 export type SetResultOutcome ={ ok: true; result: RoundResult } | { ok: false; error: string };
@@ -230,14 +322,20 @@ export async function setResult(roundId: number, input: ResultInput, actorId: nu
 }
 
 /** Cancel a round: every pending bill is refunded in full. */
-export async function cancelRound(roundId: number, actorId: number | null, now = Date.now()): Promise<{ ok: boolean; error?: string; refunded?: number }> {
+export async function cancelRound(
+  roundId: number,
+  actorId: number | null,
+  now = Date.now(),
+  /** Recorded in the audit entry; `reconcileRounds` uses it to know which rounds it may reopen. */
+  detail?: { by: "schedule" },
+): Promise<{ ok: boolean; error?: string; refunded?: number }> {
   const e = await errorsT();
   const marked = await tx(async () => {
     const locked = await q1<RoundRow>("SELECT * FROM rounds WHERE id = ? FOR UPDATE", roundId);
     if (!locked) return { ok: false as const, error: e.rounds.notFound };
     if (locked.status !== "scheduled") return { ok: false as const, error: e.rounds.done };
     await run("UPDATE rounds SET status = 'cancelled', resulted_at = ?, resulted_by = ? WHERE id = ?", now, actorId, roundId);
-    await audit(actorId, "round.cancel", `round:${roundId}`, undefined, now);
+    await audit(actorId, "round.cancel", `round:${roundId}`, detail, now);
     return { ok: true as const };
   });
   if (!marked.ok) return marked;
@@ -269,22 +367,40 @@ export function randomResult(format: ResultFormat, rng: () => number = cryptoRng
   }
 }
 
-/** Draw and settle every auto-result round whose draw time has passed. */
+const logRoundFailure = (what: string, roundId: number, error: unknown) =>
+  console.error(`[rounds] ${what} failed for round ${roundId}:`, error instanceof Error ? error.message : error);
+
+/** Draw and settle every auto-result round whose draw time has passed. One failing round does not stop the others. */
 export async function autoResults(now: number, limit = 200): Promise<number> {
   const due = await q<{ id: number; format: ResultFormat }>(
     `SELECT r.id, l.format FROM rounds r JOIN lottos l ON l.id = r.lotto_id
-     WHERE r.status = 'scheduled' AND r.draw_at <= ? AND l.auto_result = 1
+     WHERE r.status = 'scheduled' AND r.draw_at <= ? AND ${SELF_DRAWN_SQL}
      ORDER BY r.draw_at LIMIT ?`,
     now,
     limit,
   );
-  for (const r of due) await setResult(r.id, randomResult(r.format), null, now);
-  return due.length;
+  let drawn = 0;
+  for (const r of due) {
+    try {
+      if ((await setResult(r.id, randomResult(r.format), null, now)).ok) drawn++;
+    } catch (error) {
+      logRoundFailure("auto result", r.id, error);
+    }
+  }
+  return drawn;
 }
 
-/** Finish paying or refunding rounds whose settlement was interrupted. */
+/** Finish paying or refunding rounds whose settlement was interrupted. One failing round does not stop the others. */
 export async function resumeSettlements(now: number): Promise<number> {
   const open = await q<{ id: number }>("SELECT id FROM rounds WHERE status IN ('resulted','cancelled') AND settled_at IS NULL ORDER BY resulted_at LIMIT 20");
-  for (const r of open) await settlePending(r.id, now);
-  return open.length;
+  let settled = 0;
+  for (const r of open) {
+    try {
+      await settlePending(r.id, now);
+      settled++;
+    } catch (error) {
+      logRoundFailure("settlement", r.id, error);
+    }
+  }
+  return settled;
 }

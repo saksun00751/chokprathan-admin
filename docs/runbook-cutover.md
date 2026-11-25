@@ -434,6 +434,18 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ---
 
+## กลุ่มหวยและงวดแบบสร้างเอง (member migration 10 และ 11)
+
+ทำหลัง Contract (ขั้น 6) เสร็จแล้วเท่านั้น: `migrate` รันทุก migration ที่ค้าง ถ้าฐานยังต่ำกว่า 9 จะลบข้อมูลพนักงานเดิมไปด้วย
+
+1. `cd "$MEMBER_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate`
+2. ให้สิทธิ์ใหม่จาก `scripts/grants.sql`: บรรทัด `lotto.lotto_groups` ทั้งของ `chok_admin` และ `chok_member` และบรรทัด `lotto.lottos` ของ `chok_admin` (เพิ่ม INSERT สำหรับเพิ่มหวยใหม่)
+3. deploy member แล้วจึง deploy admin
+
+**Verify:** member `npm run db -- status` ได้ schema version 11; หน้า "ประเภทหวย" ใน admin เพิ่มกลุ่มได้; หน้าแทงหวยของ member แสดงปกติ
+
+---
+
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
 1. **Parity:** logic เงิน (`src/domain` money, pricing, match, numbers, adjust, schedule + parity test) มีสองสำเนา ต้องเหมือนกันทุกไบต์

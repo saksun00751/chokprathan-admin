@@ -3,12 +3,14 @@ import { io } from "next/cache";
 import { maskPhone } from "@/domain/banks";
 import { BET_TYPE_ORDER } from "@/domain/betTypes";
 import { bucketsOf, resolveRange, type DateRange } from "@/domain/periods";
-import type { BetTypeCode, LottoGroup, RoundResult } from "@/domain/types";
+import { groupName } from "@/domain/lotto-groups";
+import type { BetTypeCode, RoundResult } from "@/domain/types";
 import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
 import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx } from "@/server/stats/derive";
 import { rangeStats, roundStats, type RangeStats } from "@/server/stats/store";
 import { can, type Employee } from "@/server/services/employee-auth";
+import { listGroups } from "@/server/services/lotto-groups";
 import { listLottos } from "@/server/services/lottos";
 import type { Locale } from "@/i18n/config";
 import type { Dict } from "@/i18n/dictionaries";
@@ -107,7 +109,11 @@ async function daily(r: DateRange, s: RangeStats, R: ReportsDict): Promise<Repor
 
 async function byLotto(s: RangeStats, R: ReportsDict): Promise<ReportTable> {
   const c = R.lottos.cols;
-  const [lottos, players] = await Promise.all([listLottos({ includeDisabled: true }), s.playersPerLotto()]);
+  const [lottos, players, groups] = await Promise.all([listLottos({ includeDisabled: true }), s.playersPerLotto(), listGroups()]);
+  const groupLabel = (code: string) => {
+    const g = groups.find((x) => x.code === code);
+    return g ? groupName(g, R.lang, R.t.lotto.groups) : code;
+  };
   const rows = [...sumLottos(s.days)].sort(([ia, a], [ib, b]) => b.stake - a.stake || ia - ib);
   return {
     columns: [
@@ -127,7 +133,7 @@ async function byLotto(s: RangeStats, R: ReportsDict): Promise<ReportTable> {
       const ggr = x.settled - x.payout;
       return {
         lotto: lotto ? lottoShort(lotto, R.t) : "-",
-        group: lotto ? R.t.lotto.groups[lotto.group as LottoGroup] : "-",
+        group: lotto ? groupLabel(lotto.group) : "-",
         rounds: x.rounds,
         bills: x.bills,
         players: players.get(id) ?? 0,

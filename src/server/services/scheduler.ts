@@ -43,33 +43,46 @@ const STATS_EVERY = 60_000;
 /** Full walk of the audit hash chain (sealing runs every tick). */
 const VERIFY_EVERY = 6 * 60 * 60_000;
 
+/** Run one job; log a failure instead of letting it stop the jobs after it. */
+async function job(name: string, fn: () => Promise<unknown>) {
+  try {
+    await fn();
+  } catch (error) {
+    console.error(`[scheduler] ${name} failed:`, error instanceof Error ? error.message : error);
+  }
+}
+
 export async function tick(now = Date.now()) {
   if (state.ticking) return;
   state.ticking = true;
   try {
     const r = await withLock(LOCK_NAME, async () => {
       if (now - state.lastEnsure > ENSURE_EVERY) {
-        await ensureRounds(now);
-        state.lastEnsure = now;
+        await job("round creation", async () => {
+          await ensureRounds(now);
+          state.lastEnsure = now;
+        });
       }
-      await autoResults(now);
-      await resumeSettlements(now);
-      await settlePendingGuesses(now).catch((error) => console.error("[scheduler] guess settlement failed:", error instanceof Error ? error.message : error));
-      await expireDeposits(now);
+      await job("auto results", () => autoResults(now));
+      await job("settlement", () => resumeSettlements(now));
+      await job("guess settlement", () => settlePendingGuesses(now));
+      await job("deposit expiry", () => expireDeposits(now));
       if (now - state.lastPrune > PRUNE_EVERY) {
-        await pruneEmployeeSessions(now);
-        await pruneRateLimits(now);
-        state.lastPrune = now;
+        await job("pruning", async () => {
+          await pruneEmployeeSessions(now);
+          await pruneRateLimits(now);
+          state.lastPrune = now;
+        });
       }
-      await sealAudit(now).catch((error) => console.error("[scheduler] audit sealing failed:", error instanceof Error ? error.message : error));
+      await job("audit sealing", () => sealAudit(now));
       if (now - (state.lastVerify ?? 0) >= VERIFY_EVERY) {
         state.lastVerify = now;
-        await verifyAudit(now).catch((error) => console.error("[scheduler] audit verification failed:", error instanceof Error ? error.message : error));
+        await job("audit verification", () => verifyAudit(now));
       }
       if (now - (state.lastStats ?? 0) >= STATS_EVERY) {
         state.lastStats = now;
         // Summaries are rebuilt on read when stale, so a failure here only costs speed, never numbers.
-        await rollupStats(now).catch((error) => console.error("[scheduler] stats rollup failed:", error instanceof Error ? error.message : error));
+        await job("stats rollup", () => rollupStats(now));
       }
       await run(
         "INSERT INTO system_status (name, `value`, updated_at) VALUES ('scheduler', ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = VALUES(updated_at)",

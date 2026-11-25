@@ -10,7 +10,8 @@ export type BetTypeCode =
   | "runBottom";
 
 export type ResultFormat = "standard" | "thai_gov" | "laos4";
-export type LottoGroup = "thai" | "foreign" | "stock" | "yiki";
+/** A `lotto_groups.code`: a built-in (see domain/lotto-groups) or one staff created. */
+export type LottoGroup = string;
 
 export interface RoundResult {
   top3: string;

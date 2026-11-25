@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ExternalLink, LogOut } from "lucide-react";
 import { io } from "next/cache";
 import { Suspense } from "react";
+import { SELF_DRAWN_SQL } from "@/domain/auto-result";
 import { LogoMark } from "@/components/brand/logo";
 import { ActiveAdminNav, AdminNav, type NavState } from "@/components/admin/nav";
 import { ConfirmProvider } from "@/components/admin/confirm";
@@ -55,7 +56,7 @@ async function navState(): Promise<NavState | null> {
       ? await q1<{ f: number; r: number }>(
           `SELECT
              ${wantFinance ? "(SELECT COUNT(*) FROM deposits WHERE status = 'pending') + (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending')" : "0"} AS f,
-             ${wantResults ? "(SELECT COUNT(*) FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status = 'scheduled' AND r.closes_at <= ? AND l.auto_result = 0)" : "0"} AS r`,
+             ${wantResults ? `(SELECT COUNT(*) FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL})` : "0"} AS r`,
           ...(wantResults ? [Date.now()] : []),
         )
       : undefined;

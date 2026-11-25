@@ -57,12 +57,15 @@ GRANT SELECT, UPDATE ON lotto.bills TO 'chok_admin'@'%';
 GRANT SELECT, UPDATE ON lotto.bill_items TO 'chok_admin'@'%';
 GRANT SELECT, UPDATE ON lotto.deposits TO 'chok_admin'@'%';
 GRANT SELECT, UPDATE ON lotto.withdrawals TO 'chok_admin'@'%';
-GRANT SELECT, UPDATE ON lotto.lottos TO 'chok_admin'@'%';
 GRANT SELECT, UPDATE ON lotto.game_products TO 'chok_admin'@'%';
 -- point_guesses: settlement updates status; INSERT only in the unused member-facing placeGuess.
 GRANT SELECT, UPDATE ON lotto.point_guesses TO 'chok_admin'@'%';
 
+-- Lottery groups: staff create, rename, reorder and delete empty ones.
+GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.lotto_groups TO 'chok_admin'@'%';
+
 -- Created and edited by admin (soft-deleted or archived, never DELETEd).
+GRANT SELECT, INSERT, UPDATE ON lotto.lottos TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.rounds TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.bank_accounts TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.blocklist TO 'chok_admin'@'%';
@@ -142,6 +145,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.game_txns TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.games TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.login_attempts TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.login_challenges TO 'chok_member'@'%';
+GRANT SELECT ON lotto.lotto_groups TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.lottos TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.manual_limits TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.media TO 'chok_member'@'%';

@@ -1,8 +1,9 @@
 import "server-only";
+import { mayAutoResult } from "@/domain/auto-result";
 import { BET_TYPES, betTypesFor } from "@/domain/betTypes";
 import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "@/domain/types";
 import { invalidate, memo } from "@/server/cache";
-import { afterCommit, json, q } from "@/server/db";
+import { afterCommit, json, q, q1, run } from "@/server/db";
 import { getSettings, type AllSettings } from "./settings";
 
 export interface LottoLimitsOverride {
@@ -21,6 +22,8 @@ export interface Lotto {
   schedule: Schedule;
   resultDelayMin: number;
   autoResult: boolean;
+  /** The scheduler creates this lottery's rounds from its schedule; off, staff create them. */
+  autoRounds: boolean;
   enabled: boolean;
   sort: number;
   flag: string | null;
@@ -39,6 +42,8 @@ interface LottoRow {
   schedule: string;
   result_delay_min: number;
   auto_result: number;
+  /** Absent before member migration 11. */
+  auto_rounds?: number;
   enabled: number;
   sort: number;
   flag: string | null;
@@ -57,7 +62,8 @@ function toLotto(r: LottoRow): Lotto {
     format: r.format,
     schedule: json.parse<Schedule>(r.schedule, { kind: "weekly", days: [], close: "00:00" }),
     resultDelayMin: r.result_delay_min,
-    autoResult: r.auto_result === 1,
+    autoResult: r.auto_result === 1 && mayAutoResult(r.grp),
+    autoRounds: r.auto_rounds !== 0,
     enabled: r.enabled === 1,
     sort: r.sort,
     flag: r.flag,
@@ -75,6 +81,34 @@ function allLottos(): Promise<Lotto[]> {
 export function invalidateLottos() {
   invalidate("lottos", "lobby", "limits:", "results");
   afterCommit(() => invalidate("lottos", "lobby", "limits:", "results"));
+}
+
+export type NewLotto = Pick<Lotto, "slug" | "name" | "shortName" | "group" | "format" | "flag" | "schedule" | "resultDelayMin">;
+
+/**
+ * Add a lottery, switched off with manual results so staff can check its rates first. Returns its
+ * id, or null when the slug is taken. There is no delete: bills keep pointing at their lottery.
+ */
+export async function createLotto(v: NewLotto, now = Date.now()): Promise<number | null> {
+  const sort = ((await q1<{ n: number | null }>("SELECT MAX(sort) AS n FROM lottos"))?.n ?? 0) + 1;
+  // IGNORE: slug is unique.
+  const { changes, lastId } = await run(
+    `INSERT IGNORE INTO lottos (slug, name, short_name, grp, format, schedule, result_delay_min, auto_result, enabled, sort, flag, rates, limits, risk, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, '{}', '{}', '{}', ?)`,
+    v.slug,
+    v.name,
+    v.shortName,
+    v.group,
+    v.format,
+    json.str(v.schedule),
+    v.resultDelayMin,
+    sort,
+    v.flag,
+    now,
+  );
+  if (!changes) return null;
+  invalidateLottos();
+  return lastId;
 }
 
 export async function listLottos({ includeDisabled = false } = {}): Promise<Lotto[]> {

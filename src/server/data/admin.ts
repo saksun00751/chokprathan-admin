@@ -2,13 +2,16 @@ import "server-only";
 // Authorization lives here, next to the data: Next renders layouts and pages in parallel,
 // so the admin layout gate alone does not stop a page from reading admin data.
 import { io } from "next/cache";
+import { SELF_DRAWN_SQL } from "@/domain/auto-result";
 import { maskAccount, maskPhone } from "@/domain/banks";
+import type { LottoGroupInfo } from "@/domain/lotto-groups";
 import { dayKey, dayStartMs } from "@/domain/time";
 import type { LottoGroup, ResultFormat } from "@/domain/types";
 import { json, q, q1, tolerateMissingTable } from "@/server/db";
 import { can, type Employee } from "@/server/services/employee-auth";
 import { listBanners } from "@/server/services/banners";
 import type { DepositRow, WithdrawalRow } from "@/server/services/finance";
+import { listGroups } from "@/server/services/lotto-groups";
 import { betConfigs, getLotto, listLottos, type Lotto } from "@/server/services/lottos";
 import { exposureTable, manualLimitList, roundTotals } from "@/server/services/risk";
 import { lottoName, lottoShort, roundName } from "@/i18n/labels";
@@ -94,7 +97,11 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
       },
     ];
   });
-  return { serverNow: now, day, rounds: list, lottos: lottos.map((l) => ({ id: l.id, name: lottoShort(l, t) })) };
+  // The lotteries a round can be made for by hand; empty for staff who may not do that.
+  const creatable = can(await requireEmployee("rounds.view"), "lottos.manage")
+    ? lottos.filter((l) => l.enabled).map((l) => ({ id: l.id, name: lottoShort(l, t), delayMin: l.resultDelayMin }))
+    : [];
+  return { serverNow: now, day, rounds: list, lottos: lottos.map((l) => ({ id: l.id, name: lottoShort(l, t) })), creatable };
 }
 
 /** Rounds past their close time that still wait for a result typed in by staff. */
@@ -107,7 +114,7 @@ export async function getAwaitingResults() {
     q<RoundRow & { bills: number }>(
       `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
        FROM rounds r JOIN lottos l ON l.id = r.lotto_id
-       WHERE r.status = 'scheduled' AND r.closes_at <= ? AND l.auto_result = 0
+       WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL}
        ORDER BY r.closes_at LIMIT 100`,
       now,
     ),
@@ -416,6 +423,12 @@ export async function getAdminLottos(): Promise<Lotto[]> {
   await requireEmployee("lottos.manage");
   await io();
   return listLottos({ includeDisabled: true });
+}
+
+export async function getAdminLottoGroups(): Promise<LottoGroupInfo[]> {
+  await requireEmployee("lottos.manage");
+  await io();
+  return listGroups();
 }
 
 export async function getAdminContent() {
