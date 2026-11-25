@@ -1,5 +1,5 @@
 // src/server/db/import-staff.test.ts
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { hasTestDb, resetDb } from "@/test/db";
 import { pinned, q, q1, run } from "@/server/db";
 import { importStaff } from "@/server/db/import-staff";
@@ -32,7 +32,44 @@ async function legacyTables() {
     (12,NULL,'h','Member B','member','active',NULL,0,0,30)`);
 }
 
+// The member app's real `users` / `staff_roles` (when the test DB holds the member schema) are moved aside for this
+// file and put back afterwards, so running the suite never leaves the shared test DB with the stand-in tables below.
+const ASIDE = ["users", "staff_roles"] as const;
+
+async function tableExists(name: string) {
+  return !!(await q1("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?", name));
+}
+
+async function moveRealTablesAside() {
+  await pinned(async () => {
+    await run("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const t of ASIDE) if ((await tableExists(t)) && !(await tableExists(`${t}__real`))) await run(`RENAME TABLE ${t} TO ${t}__real`);
+    } finally {
+      await run("SET FOREIGN_KEY_CHECKS = 1");
+    }
+  });
+}
+
+async function putRealTablesBack() {
+  await pinned(async () => {
+    await run("SET FOREIGN_KEY_CHECKS = 0");
+    try {
+      for (const t of ASIDE) {
+        if (!(await tableExists(`${t}__real`))) continue;
+        await run(`DROP TABLE IF EXISTS ${t}`);
+        await run(`RENAME TABLE ${t}__real TO ${t}`);
+      }
+    } finally {
+      await run("SET FOREIGN_KEY_CHECKS = 1");
+    }
+  });
+}
+
 describe.skipIf(!hasTestDb)("importStaff", () => {
+  beforeAll(moveRealTablesAside);
+  afterAll(putRealTablesBack);
+
   beforeEach(async () => {
     await resetDb();
     await legacy();
