@@ -20,7 +20,8 @@ export interface PendingCorrection {
   mine: boolean;
 }
 
-const money = (satang: number) => `฿${formatBaht(satang, { decimals: "auto", sign: true })}`;
+/** A signed change, sign first: "-฿1,200". */
+const money = (satang: number) => `${satang > 0 ? "+" : satang < 0 ? "-" : ""}฿${formatBaht(Math.abs(satang), { decimals: "auto" })}`;
 
 /**
  * A paid draw can be corrected by two people: one asks (a new result, or voiding the draw) with a
