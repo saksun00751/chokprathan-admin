@@ -1,5 +1,6 @@
 import "server-only";
-import { q1, run, tx } from "@/server/db";
+import { collectDebt } from "chokprathan-core/wallet/debt";
+import { q, q1, run, tx } from "@/server/db";
 
 export type WalletKind = "balance" | "cashback" | "affiliate";
 
@@ -8,6 +9,8 @@ export type TxType =
   | "bonus"
   | "withdraw"
   | "withdraw_refund"
+  /** taken from money coming in to repay a debt (written by chokprathan-core) */
+  | "debt_repay"
   | "bet"
   | "win"
   | "refund"
@@ -64,6 +67,8 @@ export async function move(
       actorId,
       now,
     );
+    // Whatever the member owes comes out of new money first.
+    if (amount > 0) return row!.v - (await collectDebt({ q, q1, run }, userId, wallet, amount, now));
     return row!.v;
   });
 }

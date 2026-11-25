@@ -39,6 +39,7 @@ import { closeMember, reopenMember, updateMember, type MemberEdit, type MemberEd
 import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/services/lottos";
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
+import { writeOffDebt } from "@/server/services/debts";
 import { checkResult, confirmResult, enterResult, rejectResult, type PayoutPreview, type ResultField } from "@/server/services/results";
 import { cancelRound, closeRoundNow, reconcileRounds, createRound } from "@/server/services/rounds";
 import { refreshRoundConfigs } from "@/server/services/round-configs";
@@ -129,6 +130,15 @@ export async function withdrawResultAction(roundId: number): Promise<ActionResul
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
   const r = await rejectResult(roundId, g.viewer.id, { ownOnly: true });
   return r.ok ? done(g.e.admin.resultWithdrawn) : { ok: false, error: r.error };
+}
+
+export async function writeOffDebtAction(debtId: number, reason: string): Promise<ActionResult> {
+  const g = await gate("finance.writeoff");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(debtId)) return { ok: false, error: g.e.admin.debtMissing };
+  const r = await writeOffDebt(debtId, g.viewer.id, String(reason ?? ""), Date.now(), g.ip);
+  if (r.ok) return done(fmt(g.e.admin.debtForgiven, { amount: formatBaht(r.amount) }));
+  return { ok: false, error: { notFound: g.e.admin.debtMissing, nothing: g.e.admin.debtNothing, reason: g.e.admin.debtReason }[r.error] };
 }
 
 export async function closeRoundAction(roundId: number): Promise<ActionResult> {

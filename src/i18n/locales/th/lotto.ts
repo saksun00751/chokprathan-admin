@@ -19,6 +19,7 @@ export const lotto = {
     bonus: "โบนัสโปรโมชั่น",
     withdraw: "ถอนเงิน",
     withdraw_refund: "คืนเงินถอน",
+    debt_repay: "หักชำระยอดค้าง",
     bet: "แทงหวย",
     win: "ถูกรางวัล",
     refund: "คืนเงินโพย",

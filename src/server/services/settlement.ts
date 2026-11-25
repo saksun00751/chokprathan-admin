@@ -1,4 +1,5 @@
 import "server-only";
+import { collectDebt } from "chokprathan-core/wallet/debt";
 import { maskPhone } from "@/domain/banks";
 import { isWinning } from "chokprathan-core/rules/match";
 import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
@@ -235,7 +236,20 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
   await recordEntitlements(entitled);
   await insertMany("transactions", ["user_id", "wallet", "type", "amount", "balance_after", "ref", "note", "actor_id", "run_id", "created_at"], ledger);
   await applyDeltas(deltas);
+  await collectFromCredits(deltas, now);
   return { bills: chunk.length, items: itemRows.length };
+}
+
+/** Winnings and rewards just paid repay what their receivers owe, before this transaction ends. */
+async function collectFromCredits(deltas: Map<number, Wallets & { turnover: number }>, now: number) {
+  if (deltas.size === 0) return;
+  const owing = await q<{ user_id: number }>("SELECT DISTINCT user_id FROM member_debts WHERE user_id IN (?) AND outstanding > 0 ORDER BY user_id", [...deltas.keys()]);
+  for (const { user_id } of owing) {
+    for (const wallet of ["balance", "cashback", "affiliate"] as const) {
+      const paid = deltas.get(user_id)![wallet];
+      if (paid > 0) await collectDebt({ q, q1, run }, user_id, wallet, paid, now);
+    }
+  }
 }
 
 /** One UPDATE for every wallet change in the chunk. The rows are already locked by this transaction. */

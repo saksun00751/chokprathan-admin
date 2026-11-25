@@ -85,6 +85,7 @@ export const shell: typeof th = {
     "finance.view": "View deposits and withdrawals",
     "finance.deposit": "Approve or reject deposits",
     "finance.withdraw": "Approve or reject withdrawals",
+    "finance.writeoff": "Forgive member debts",
     "banks.view": "See website bank accounts, balances, and history",
     "banks.manage": "Add, edit, or delete website bank accounts",
     "banks.adjust": "Adjust website bank account balances",

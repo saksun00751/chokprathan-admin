@@ -23,6 +23,7 @@ export const PERMISSIONS = [
   { id: "finance.view", group: "finance" },
   { id: "finance.deposit", group: "finance" },
   { id: "finance.withdraw", group: "finance" },
+  { id: "finance.writeoff", group: "finance" },
   { id: "banks.view", group: "finance" },
   { id: "banks.manage", group: "finance" },
   { id: "banks.adjust", group: "finance" },

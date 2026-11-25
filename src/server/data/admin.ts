@@ -13,6 +13,7 @@ import { listBanners } from "@/server/services/banners";
 import type { DepositRow, WithdrawalRow } from "@/server/services/finance";
 import { listGroups } from "@/server/services/lotto-groups";
 import { betConfigs, getLotto, listLottos, type Lotto } from "@/server/services/lottos";
+import { listDebts } from "@/server/services/debts";
 import { exposureTable, manualLimitList, roundTotals } from "@/server/services/risk";
 import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
@@ -335,7 +336,8 @@ export async function getMember(userId: number) {
     user.closed_by ? q1<{ name: string }>("SELECT COALESCE(username, name) AS name FROM employees WHERE id = ?", user.closed_by) : Promise.resolve(undefined),
   ]);
   const view = contactView(viewer);
-  const [points, pointRule, blocks, games] = await Promise.all([
+  const [debts, points, pointRule, blocks, games] = await Promise.all([
+    listDebts(userId),
     pointsOf(userId, 50),
     getSetting("points"),
     // Checked on the real details, before anything is masked for this viewer.
@@ -348,6 +350,7 @@ export async function getMember(userId: number) {
     pointMoves: points.moves.map((m) => ({ ...m, before: Number(m.balance_after) - Number(m.amount) })),
     pointRule,
     games,
+    debts,
     /** active blocklist entries this member matches; phone and account shown only to members.contact */
     blocks: blocks.map((b) => ({
       id: b.id,
@@ -373,6 +376,7 @@ export async function getMember(userId: number) {
     tx,
     upline: upline ? { ...upline, phone: view.phone(upline.phone) } : null,
     can: {
+      writeOff: can(viewer, "finance.writeoff"),
       manage: can(viewer, "members.manage"),
       adjust: can(viewer, "members.adjust"),
       edit: can(viewer, "members.edit"),

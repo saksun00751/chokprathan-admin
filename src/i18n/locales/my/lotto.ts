@@ -20,6 +20,7 @@ export const lotto: typeof th = {
     bonus: "ပရိုမိုးရှင်း ဘောနပ်",
     withdraw: "ငွေထုတ်",
     withdraw_refund: "ငွေထုတ် ပြန်အမ်း",
+    debt_repay: "အကြွေးဆပ်ငွေ ဖြတ်ယူခြင်း",
     bet: "ထီထိုး",
     win: "ဆုပေါက်",
     refund: "ထိုးစာရင်း ငွေပြန်အမ်း",

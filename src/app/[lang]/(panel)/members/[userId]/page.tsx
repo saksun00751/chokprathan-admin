@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { MemberActions, MemberCloseForm, MemberEditForm, MemberPointsForm } from "@/components/admin/forms";
 import { MemberBlockForm, UnblockButton } from "@/components/admin/blocklist";
+import { DebtList } from "@/components/admin/debt-list";
 import { Figure } from "@/components/admin/ui";
 import { Badge, Card, Money, PageHeader, SectionTitle, Skeleton } from "@/components/ui/primitives";
 import { BILL_TONE, type BillStatus } from "@/domain/labels";
@@ -106,6 +107,13 @@ async function MemberBody({ params }: Pick<PageProps<"/[lang]/members/[userId]">
               <Money satang={totals.payout - totals.stake} sign decimals="auto" />
             </Figure>
           </dl>
+
+          {data.debts.length > 0 && (
+            <section aria-labelledby="debts">
+              <SectionTitle id="debts">{d.admin.people.debts.title}</SectionTitle>
+              <DebtList debts={data.debts} canWriteOff={data.can.writeOff} />
+            </section>
+          )}
 
           <section aria-labelledby="bills">
             <SectionTitle id="bills">{mb.bills}</SectionTitle>

@@ -20,6 +20,7 @@ export const lotto: typeof th = {
     bonus: "ໂບນັດໂປຣໂມຊັນ",
     withdraw: "ຖອນເງິນ",
     withdraw_refund: "ຄືນເງິນຖອນ",
+    debt_repay: "ຫັກຊຳລະຍອດຄ້າງ",
     bet: "ແທງຫວຍ",
     win: "ຖືກລາງວັນ",
     refund: "ຄືນເງິນໂພຍ",

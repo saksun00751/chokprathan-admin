@@ -1,4 +1,5 @@
 import "server-only";
+import { outstandingDebt } from "chokprathan-core/wallet/debt";
 import { fmt } from "@/i18n/format";
 import { errorsT } from "@/i18n/server";
 import { formatBaht } from "chokprathan-core/rules/money";
@@ -184,6 +185,10 @@ export async function approveWithdrawal(
   return tx(async () => {
     const w = await q1<WithdrawalRow>("SELECT * FROM withdrawals WHERE id = ? FOR UPDATE", id);
     if (!w || w.status !== "pending") return { ok: false as const, error: e.wallet.alreadyProcessed };
+    // The member's row lock keeps a debt from appearing between this check and the approval.
+    await q1("SELECT id FROM users WHERE id = ? FOR UPDATE", w.user_id);
+    const owed = await outstandingDebt({ q, q1, run }, w.user_id);
+    if (owed > 0) return { ok: false as const, error: fmt(e.wallet.debtBlocks, { amount: formatBaht(owed) }) };
     await run("UPDATE withdrawals SET status = 'approved', reviewed_at = ?, reviewed_by = ?, paid_from_id = ? WHERE id = ?", now, actorId, paidFromId, id);
     if (paidFromId !== null) await bankMove(paidFromId, -w.amount, "withdrawal", `WD${String(id).padStart(6, "0")}`, null, actorId, now);
     await audit(actorId, "withdraw.approve", `withdrawal:${id}`, { amount: w.amount, paidFrom: paidFromId }, now, ip);

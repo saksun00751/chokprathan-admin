@@ -20,6 +20,7 @@ export const lotto: typeof th = {
     bonus: "ប្រាក់បន្ថែមប្រូម៉ូសិន",
     withdraw: "ដកប្រាក់",
     withdraw_refund: "បង្វិលប្រាក់ដក",
+    debt_repay: "កាត់សងបំណុល",
     bet: "ចាក់ឆ្នោត",
     win: "ឈ្នះរង្វាន់",
     refund: "បង្វិលប្រាក់សន្លឹកចាក់",

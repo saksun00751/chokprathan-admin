@@ -20,6 +20,7 @@ export const lotto: typeof th = {
     bonus: "Promotion bonus",
     withdraw: "Withdrawal",
     withdraw_refund: "Withdrawal returned",
+    debt_repay: "Debt repayment",
     bet: "Bet",
     win: "Win",
     refund: "Bill refund",
