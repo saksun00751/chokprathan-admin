@@ -122,7 +122,14 @@ export async function ensureRounds(now: number, { daysBack = 1, daysAhead = 1 } 
   if (planned.length === 0) return 0;
   const from = Math.min(...planned.map((p) => p.closesAt));
   const to = Math.max(...planned.map((p) => p.closesAt));
-  const existing = await q<{ lotto_id: number; closes_at: number }>("SELECT lotto_id, closes_at FROM rounds WHERE closes_at BETWEEN ? AND ?", from, to);
+  // A round closed early still occupies its planned time.
+  const existing = await q<{ lotto_id: number; closes_at: number }>(
+    "SELECT lotto_id, COALESCE(planned_close, closes_at) AS closes_at FROM rounds WHERE closes_at BETWEEN ? AND ? OR planned_close BETWEEN ? AND ?",
+    from,
+    to,
+    from,
+    to,
+  );
   const have = new Set(existing.map((r) => `${r.lotto_id}:${r.closes_at}`));
   const missing = planned.filter((p) => !have.has(`${p.lotto.id}:${p.closesAt}`));
   let inserted = 0;
@@ -345,6 +352,24 @@ export async function cancelRound(
   // Guesses on a cancelled round get their points back.
   await settleGuesses(roundId, now).catch((error) => console.error("[rounds] guess refund failed:", error instanceof Error ? error.message : error));
   return { ok: true, refunded: bills };
+}
+
+/**
+ * Stop betting on an open round now (a result came out early, or something is wrong). Accepted bills
+ * stay. The planned time is kept so the round is not created again.
+ */
+export async function closeRoundNow(roundId: number, actorId: number, now = Date.now()): Promise<{ ok: true } | { ok: false; error: "notFound" | "notOpen" }> {
+  const outcome = await tx(async () => {
+    // Exclusive lock: waits for bets in flight, which hold the row shared.
+    const locked = await q1<RoundRow>("SELECT * FROM rounds WHERE id = ? FOR UPDATE", roundId);
+    if (!locked) return { ok: false as const, error: "notFound" as const };
+    if (locked.status !== "scheduled" || now < locked.opens_at || now >= locked.closes_at) return { ok: false as const, error: "notOpen" as const };
+    await run("UPDATE rounds SET planned_close = COALESCE(planned_close, closes_at), closes_at = ? WHERE id = ?", now, roundId);
+    await audit(actorId, "round.close", `round:${roundId}`, { plannedClose: locked.closes_at }, now);
+    return { ok: true as const };
+  });
+  if (outcome.ok) invalidateRoundViews(roundId);
+  return outcome;
 }
 
 const randomDigits = (n: number, rng: () => number) => Array.from({ length: n }, () => Math.floor(rng() * 10)).join("");

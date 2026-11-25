@@ -468,6 +468,20 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ---
 
+## รอบจ่ายรางวัลและการยืนยันผล (member migration 14)
+
+หลังบ้านรุ่นใหม่ใช้ตารางและคอลัมน์ของ migration นี้ทั้งตอนสร้างงวดและจ่ายรางวัล จึงต้อง migrate ก่อน
+
+1. `cd "$MEMBER_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate`
+2. ให้สิทธิ์ใหม่จาก `scripts/grants.sql` (`round_results`, `settlement_runs` ของทั้งสองผู้ใช้)
+3. deploy admin แล้วจึง deploy member
+
+**Verify:** หลังออกผลงวดแรก `SELECT status, COUNT(*) FROM settlement_runs GROUP BY status` ไม่มี `mismatch`
+
+ถ้ามี `mismatch`: งวดจะค้างที่ "จ่ายไม่ครบ" และตัวตั้งเวลาไม่ลองซ้ำ ดูตัวเลขใน `settlement_runs.report` แล้วตรวจ `transactions` ที่มี `run_id` นั้นก่อนแก้
+
+---
+
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
 1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน
