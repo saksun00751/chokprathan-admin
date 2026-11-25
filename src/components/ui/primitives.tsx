@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { formatBaht } from "@/domain/money";
+import { formatBaht } from "chokprathan-core/rules/money";
 import { cn } from "@/lib/cn";
 
 /* ---------- Badge ---------- */

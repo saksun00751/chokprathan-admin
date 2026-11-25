@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useConfirm } from "@/components/admin/confirm";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { BKK_OFFSET_MS } from "@/domain/time";
+import { BKK_OFFSET_MS } from "chokprathan-core/rules/time";
 import { useI18n } from "@/i18n/client";
 import { createRoundAction } from "@/server/actions/admin";
 

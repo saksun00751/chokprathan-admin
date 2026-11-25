@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { resolveRange } from "@/domain/periods";
-import { DAY, MINUTE } from "@/domain/time";
+import { DAY, MINUTE } from "chokprathan-core/rules/time";
 import { dayOf, dayStartOf, daysIn, emptyDay, groupUsers, planRollup, seriesOf, sumBetTypes, sumLottos, sumMoney, sumPlaced, sumSettled, sumTx } from "./derive";
 import type { DayStats } from "./types";
 

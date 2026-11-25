@@ -1,6 +1,6 @@
 "use client";
 
-import type { Schedule } from "@/domain/types";
+import type { Schedule } from "chokprathan-core/rules/types";
 import { useI18n } from "@/i18n/client";
 import type { Dict } from "@/i18n/dictionaries";
 import { fmt } from "@/i18n/format";

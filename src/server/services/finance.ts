@@ -1,7 +1,7 @@
 import "server-only";
 import { fmt } from "@/i18n/format";
 import { errorsT } from "@/i18n/server";
-import { formatBaht } from "@/domain/money";
+import { formatBaht } from "chokprathan-core/rules/money";
 import { json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
 import { bankMove, payoutAccounts } from "./banks";

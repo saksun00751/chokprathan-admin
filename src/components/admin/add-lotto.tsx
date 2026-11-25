@@ -9,7 +9,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { groupName, mayMoveGroup, type LottoGroupInfo } from "@/domain/lotto-groups";
 import { copyFromLotto, detailProblems, FLAG_CODES, scheduleProblem, suggestSlug, type DetailField } from "@/domain/new-lotto";
-import type { ResultFormat, Schedule } from "@/domain/types";
+import type { ResultFormat, Schedule } from "chokprathan-core/rules/types";
 import { useI18n } from "@/i18n/client";
 import { cn } from "@/lib/cn";
 import { createLottoAction } from "@/server/actions/admin";

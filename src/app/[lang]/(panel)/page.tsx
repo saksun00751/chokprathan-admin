@@ -7,7 +7,7 @@ import { Table, Td, Th } from "@/components/admin/ui";
 import { Countdown, ServerTimeSync } from "@/components/ui/clock";
 import { Flag } from "@/components/ui/flag";
 import { Card, Money, PageHeader, SectionTitle, Skeleton } from "@/components/ui/primitives";
-import { formatBaht } from "@/domain/money";
+import { formatBaht } from "chokprathan-core/rules/money";
 import { rangeLabel } from "@/domain/periods";
 import type { Dict } from "@/i18n/dictionaries";
 import { fmt, formatDate, formatDateTime, formatNumber } from "@/i18n/format";

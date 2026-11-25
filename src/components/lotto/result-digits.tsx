@@ -1,6 +1,6 @@
 "use client";
 
-import type { ResultFormat, RoundResult } from "@/domain/types";
+import type { ResultFormat, RoundResult } from "chokprathan-core/rules/types";
 import { useI18n } from "@/i18n/client";
 import { cn } from "@/lib/cn";
 

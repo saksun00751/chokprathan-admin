@@ -1,4 +1,4 @@
-import { BKK_OFFSET_MS, DAY, HOUR, addDays, bkkParts, dayKey, dayStartMs, parseDayKey } from "./time";
+import { BKK_OFFSET_MS, DAY, HOUR, addDays, bkkParts, dayKey, dayStartMs, parseDayKey } from "chokprathan-core/rules/time";
 
 /** Date ranges for the dashboard and reports, always in Bangkok calendar days. */
 export const PERIODS = [{ id: "today" }, { id: "yesterday" }, { id: "7d" }, { id: "30d" }, { id: "month" }, { id: "lastmonth" }] as const;

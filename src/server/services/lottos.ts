@@ -1,7 +1,7 @@
 import "server-only";
 import { mayAutoResult } from "@/domain/auto-result";
-import { BET_TYPES, betTypesFor } from "@/domain/betTypes";
-import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "@/domain/types";
+import { BET_TYPES, betTypesFor } from "chokprathan-core/rules/betTypes";
+import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "chokprathan-core/rules/types";
 import { invalidate, memo } from "@/server/cache";
 import { afterCommit, json, q, q1, run } from "@/server/db";
 import { getSettings, type AllSettings } from "./settings";

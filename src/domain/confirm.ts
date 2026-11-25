@@ -1,4 +1,4 @@
-import { formatBaht } from "./money";
+import { formatBaht } from "chokprathan-core/rules/money";
 
 /** Helpers for the back-office confirmation step: show exactly what will be saved. */
 

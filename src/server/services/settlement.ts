@@ -1,7 +1,7 @@
 import "server-only";
 import { maskPhone } from "@/domain/banks";
-import { isWinning } from "@/domain/match";
-import type { BetTypeCode, RoundResult } from "@/domain/types";
+import { isWinning } from "chokprathan-core/rules/match";
+import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { invalidate } from "@/server/cache";
 import { insertMany, json, q, q1, run, tx, type SqlValue } from "@/server/db";
 import type { RewardSettings } from "@/server/catalog";

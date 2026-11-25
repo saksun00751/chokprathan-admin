@@ -6,7 +6,7 @@ import { MemberBlockForm, UnblockButton } from "@/components/admin/blocklist";
 import { Figure } from "@/components/admin/ui";
 import { Badge, Card, Money, PageHeader, SectionTitle, Skeleton } from "@/components/ui/primitives";
 import { BILL_TONE, type BillStatus } from "@/domain/labels";
-import { formatBaht } from "@/domain/money";
+import { formatBaht } from "chokprathan-core/rules/money";
 import { fmt, formatDate, formatDateTime } from "@/i18n/format";
 import { bankName } from "@/i18n/labels";
 import { getI18n, titled } from "@/i18n/rsc";

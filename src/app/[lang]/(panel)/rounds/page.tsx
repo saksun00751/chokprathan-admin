@@ -4,7 +4,7 @@ import { CreateRound } from "@/components/admin/create-round";
 import { PHASE_TONE, Table, Td, Th } from "@/components/admin/ui";
 import { Flag } from "@/components/ui/flag";
 import { Badge, Money, PageHeader, Skeleton } from "@/components/ui/primitives";
-import { addDays } from "@/domain/time";
+import { addDays } from "chokprathan-core/rules/time";
 import { formatClock } from "@/i18n/format";
 import { getI18n, titled } from "@/i18n/rsc";
 import { getAdminRounds } from "@/server/data/admin";

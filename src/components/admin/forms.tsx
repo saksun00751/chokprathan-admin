@@ -4,7 +4,7 @@ import { BANKS } from "@/domain/banks";
 import { bankName } from "@/i18n/labels";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { formatBaht } from "@/domain/money";
+import { formatBaht } from "chokprathan-core/rules/money";
 import { useConfirm } from "@/components/admin/confirm";
 import { LangTabs, type Translations } from "@/components/admin/lang-tabs";
 import { changedRows, money, toSatang } from "@/domain/confirm";

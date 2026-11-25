@@ -1,9 +1,9 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { formatRate } from "@/domain/money";
-import { validateProfile } from "@/domain/pricing";
-import type { BetTypeCode, RiskProfile } from "@/domain/types";
+import { formatRate } from "chokprathan-core/rules/money";
+import { validateProfile } from "chokprathan-core/rules/pricing";
+import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
 import { useI18n } from "@/i18n/client";
 import { fmt, formatNumber } from "@/i18n/format";
 import { explainProfile, percentRate100, type ExplainRow } from "./risk-explain";

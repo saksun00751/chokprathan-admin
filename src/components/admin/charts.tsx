@@ -4,7 +4,7 @@ import { useI18n } from "@/i18n/client";
 import { fmt, formatNumber } from "@/i18n/format";
 import { ArrowDownRight, ArrowUpRight, Minus, Table2 } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
-import { formatBaht, formatCompactBaht } from "@/domain/money";
+import { formatBaht, formatCompactBaht } from "chokprathan-core/rules/money";
 import { cn } from "@/lib/cn";
 
 /*

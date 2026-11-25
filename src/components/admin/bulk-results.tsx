@@ -3,7 +3,7 @@
 import { useI18n } from "@/i18n/client";
 import { fmt, formatDateTime, formatNumber } from "@/i18n/format";
 import { useState, useTransition, type ReactNode } from "react";
-import type { ResultFormat } from "@/domain/types";
+import type { ResultFormat } from "chokprathan-core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
 import { Digits, EMPTY_RESULT, resultComplete, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
 import { Button } from "@/components/ui/button";

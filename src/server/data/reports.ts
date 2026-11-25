@@ -1,10 +1,10 @@
 import "server-only";
 import { io } from "next/cache";
 import { maskPhone } from "@/domain/banks";
-import { BET_TYPE_ORDER } from "@/domain/betTypes";
+import { BET_TYPE_ORDER } from "chokprathan-core/rules/betTypes";
 import { bucketsOf, resolveRange, type DateRange } from "@/domain/periods";
 import { groupName } from "@/domain/lotto-groups";
-import type { BetTypeCode, RoundResult } from "@/domain/types";
+import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
 import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx } from "@/server/stats/derive";

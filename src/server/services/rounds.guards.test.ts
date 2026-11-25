@@ -1,7 +1,7 @@
 // src/server/services/rounds.guards.test.ts
 // Auto-draw, resume and reopen rules, checked against a stubbed database (nothing real is touched).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { bkkMs } from "@/domain/time";
+import { bkkMs } from "chokprathan-core/rules/time";
 
 const db = vi.hoisted(() => ({
   q: vi.fn<(sql: string, ...p: unknown[]) => Promise<unknown[]>>(async () => []),

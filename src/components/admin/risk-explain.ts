@@ -1,7 +1,7 @@
-import { BET_TYPES } from "@/domain/betTypes";
-import { formatRate } from "@/domain/money";
-import { marginalRate100 } from "@/domain/pricing";
-import type { BetTypeCode, RiskProfile } from "@/domain/types";
+import { BET_TYPES } from "chokprathan-core/rules/betTypes";
+import { formatRate } from "chokprathan-core/rules/money";
+import { marginalRate100 } from "chokprathan-core/rules/pricing";
+import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
 
 /**
  * Plain-language summary of a risk profile, for the tier editor. No React and no dictionary here:

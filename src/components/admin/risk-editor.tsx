@@ -2,10 +2,10 @@
 
 import { useI18n } from "@/i18n/client";
 import { useState, useTransition } from "react";
-import { BET_TYPE_ORDER } from "@/domain/betTypes";
-import { formatRate } from "@/domain/money";
-import { validateProfile } from "@/domain/pricing";
-import type { BetTypeCode, RiskProfile } from "@/domain/types";
+import { BET_TYPE_ORDER } from "chokprathan-core/rules/betTypes";
+import { formatRate } from "chokprathan-core/rules/money";
+import { validateProfile } from "chokprathan-core/rules/pricing";
+import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
 import { changedRows } from "@/domain/confirm";
 import { formatNumber } from "@/i18n/format";

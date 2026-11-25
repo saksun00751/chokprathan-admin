@@ -20,6 +20,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Shared rules ship as TypeScript source.
+    server: { deps: { inline: ["chokprathan-core"] } },
     include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     env: testDb ? { DATABASE_URL: testDb, ALLOW_DB_RESET: "yes-destroy-data", SETTLE_CHUNK: "3" } : { DATABASE_URL: "" },
     globalSetup: ["src/test/global-setup.ts"],

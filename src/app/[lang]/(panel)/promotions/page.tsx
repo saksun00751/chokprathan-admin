@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { PromoEditor, VoucherCreate, VoucherToggle } from "@/components/admin/forms";
 import { Table, Td, Th } from "@/components/admin/ui";
 import { Badge, Card, Money, PageHeader, SectionTitle, Skeleton } from "@/components/ui/primitives";
-import { formatBaht } from "@/domain/money";
+import { formatBaht } from "chokprathan-core/rules/money";
 import { fmt, formatDate } from "@/i18n/format";
 import { getI18n, titled } from "@/i18n/rsc";
 import { getAdminContent } from "@/server/data/admin";

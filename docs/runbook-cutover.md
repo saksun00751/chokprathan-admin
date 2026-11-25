@@ -52,11 +52,8 @@ password=MIGRATE_PASS
      `cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate` เองก็ได้
 2. [ ] **(b) `grants.sql` ใช้ได้หลัง migration ของ member รันครบแล้วเท่านั้น** (GRANT ระดับตารางที่ไม่มี CREATE ต้องให้ตารางมีอยู่ก่อน)
    ลำดับในขั้น 2 จึงเป็น: member migrate → admin migrate → import-staff → grants
-3. [ ] **(c) merge branch `admin-split/prep` ของ member** (parity test `src/domain/parity.test.ts`) เข้า main ของ member
-   แล้วตรวจจาก repo นี้:
-   ```bash
-   cd "$ADMIN_DIR" && scripts/check-parity.sh "$MEMBER_DIR"
-   ```
+3. [ ] **(c) merge branch `admin-split/prep` ของ member** เข้า main ของ member
+   ทั้งสองแอปต้องอ้าง `chokprathan-core` tag เดียวกัน (`grep chokprathan-core package.json` ทั้งสอง repo)
 4. [ ] **(d) งานตรวจ cache TTL (plan Task 17, ไฟล์ `docs/cache-ttl-audit.md` ใน member branch)** merge และ deploy ฝั่ง member
    **ก่อน** Switch: ค่าที่ admin แก้ (settings, blocklist, lottos/สถานะรอบ, banners) ต้องถึงหน้า member ภายใน TTL ≤ 5 วินาที
    เพราะ cache ของ member invalidate ได้เฉพาะใน process ของตัวเอง
@@ -90,7 +87,7 @@ password=MIGRATE_PASS
     และ **rollback (ขั้น 5) เป็นไปไม่ได้อีก** (เหลือแค่กู้จาก backup) ผู้ใช้สิทธิ์สูงของ `MIGRATE_URL` เก็บแยกไว้ ใช้เฉพาะคำสั่ง
     `npm run db -- migrate` ที่สั่งเองเท่านั้น ห้ามอยู่ใน env ของ member app ที่รันด้วย auto-migrate
 
-**Verify:** ทุกช่องด้านบนติ๊กแล้ว, `scripts/check-parity.sh "$MEMBER_DIR"` พิมพ์ `parity ok`, และ `node scripts/check-grants.mjs --member "$MEMBER_DIR"` พิมพ์ `grants ok`;
+**Verify:** ทุกช่องด้านบนติ๊กแล้ว, ทั้งสองแอปอ้าง `chokprathan-core` tag เดียวกัน, และ `node scripts/check-grants.mjs --member "$MEMBER_DIR"` พิมพ์ `grants ok`;
 `git -C "$MEMBER_DIR" rev-parse admin-split-switch` ได้ commit (tag มีอยู่ในเครื่อง member)
 
 ---
@@ -448,8 +445,8 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
-1. **Parity:** logic เงิน (`src/domain` money, pricing, match, numbers, adjust, schedule + parity test) มีสองสำเนา ต้องเหมือนกันทุกไบต์
-   แก้พร้อมกันทั้งสอง repo และรัน `scripts/check-parity.sh "$MEMBER_DIR"` (CI รัน) การเปลี่ยนพฤติกรรมต้องทำทั้งสองฝั่ง
+1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน
+   การเปลี่ยนพฤติกรรมให้แก้ที่ repo นั้น ออก tag ใหม่ แล้วอัปเดตทั้งสองแอป
 2. **ข้อมูลพนักงานแก้ที่ admin เท่านั้นหลัง Switch** (พนักงาน, ตำแหน่ง, session, audit log) member ไม่เขียนตารางเหล่านี้อีก
    และ `chok_member` ไม่มีสิทธิ์
 3. **Cache TTL:** ค่าที่ admin แก้ (settings, blocklist, lottos, banners, theme) ถึงหน้า member หลังหมด TTL ของ cache ฝั่ง member

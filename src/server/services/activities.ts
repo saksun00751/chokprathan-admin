@@ -1,8 +1,8 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { CHANCE_TOTAL, affordableSlot, guessPayout, isGuessNumber, pickPrize } from "@/domain/activities";
-import type { RoundResult } from "@/domain/types";
-import { dayKey, dayStartMs } from "@/domain/time";
+import type { RoundResult } from "chokprathan-core/rules/types";
+import { dayKey, dayStartMs } from "chokprathan-core/rules/time";
 import { json, q, q1, run, tolerateMissingTable, tx } from "@/server/db";
 import { isBlocked, memberIdentity } from "./blocklist";
 import { movePoints } from "./points";

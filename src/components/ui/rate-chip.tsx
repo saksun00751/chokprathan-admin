@@ -1,6 +1,6 @@
 "use client";
 
-import { formatRate } from "@/domain/money";
+import { formatRate } from "chokprathan-core/rules/money";
 import { useI18n } from "@/i18n/client";
 import { cn } from "@/lib/cn";
 
