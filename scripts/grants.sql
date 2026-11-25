@@ -73,6 +73,10 @@ GRANT SELECT, INSERT, UPDATE ON lotto.lotto_bet_types TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.round_configs TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, DELETE ON lotto.lotto_rate_overrides TO 'chok_admin'@'%';
 
+-- Results waiting for or given a second person's confirmation, and each payout / refund run.
+GRANT SELECT ON lotto.round_results TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.settlement_runs TO 'chok_admin'@'%';
+
 -- Created and edited by admin (soft-deleted or archived, never DELETEd).
 GRANT SELECT, INSERT, UPDATE ON lotto.lottos TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.rounds TO 'chok_admin'@'%';
@@ -175,11 +179,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.rate_limits TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.ref_clicks TO 'chok_member'@'%';
 GRANT SELECT ON lotto.risk_profiles TO 'chok_member'@'%';
 GRANT SELECT ON lotto.round_configs TO 'chok_member'@'%';
+GRANT SELECT ON lotto.round_results TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.rounds TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.schema_migrations TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.session_ends TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.sessions TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.settings TO 'chok_member'@'%';
+GRANT SELECT ON lotto.settlement_runs TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.staff_roles TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.system_status TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.transactions TO 'chok_member'@'%';

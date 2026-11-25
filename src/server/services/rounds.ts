@@ -14,7 +14,7 @@ import { audit } from "./audit";
 import { settlePending } from "./settlement";
 import { getLotto, listLottos, type Lotto } from "./lottos";
 
-export type RoundStatus = "scheduled" | "resulted" | "cancelled";
+export type RoundStatus = "scheduled" | "pending_confirm" | "resulted" | "cancelled";
 export type RoundPhase = "upcoming" | "open" | "closed" | "resulted" | "cancelled";
 
 export interface Round {
@@ -302,6 +302,7 @@ export async function setResult(roundId: number, input: ResultInput, actorId: nu
     if (!locked) return { ok: false, error: e.rounds.notFound };
     if (locked.status === "cancelled") return { ok: false, error: e.rounds.cancelled };
     if (locked.status === "resulted") return { ok: false, error: e.rounds.resulted };
+    if (locked.status !== "scheduled") return { ok: false, error: e.rounds.resulted };
     if (now < locked.closes_at) return { ok: false, error: e.rounds.notClosed };
     await run(
       "UPDATE rounds SET status = 'resulted', result = ?, resulted_at = ?, resulted_by = ? WHERE id = ?",
@@ -392,7 +393,11 @@ export async function autoResults(now: number, limit = 200): Promise<number> {
 
 /** Finish paying or refunding rounds whose settlement was interrupted. One failing round does not stop the others. */
 export async function resumeSettlements(now: number): Promise<number> {
-  const open = await q<{ id: number }>("SELECT id FROM rounds WHERE status IN ('resulted','cancelled') AND settled_at IS NULL ORDER BY resulted_at LIMIT 20");
+  const open = await q<{ id: number }>(
+    `SELECT r.id FROM rounds r WHERE r.status IN ('resulted','cancelled') AND r.settled_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM settlement_runs s WHERE s.round_id = r.id AND s.status = 'mismatch')
+     ORDER BY r.resulted_at LIMIT 20`,
+  );
   let settled = 0;
   for (const r of open) {
     try {

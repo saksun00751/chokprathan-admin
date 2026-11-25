@@ -5,6 +5,7 @@ import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { invalidate } from "@/server/cache";
 import { insertMany, json, q, q1, run, tx, type SqlValue } from "@/server/db";
 import type { RewardSettings } from "@/server/catalog";
+import { audit } from "./audit";
 import { getSettings } from "./settings";
 import type { TxType, WalletKind } from "./wallet";
 
@@ -23,32 +24,80 @@ type Wallets = { balance: number; cashback: number; affiliate: number };
 export async function settlePending(roundId: number, now = Date.now()): Promise<{ bills: number; items: number }> {
   const round = await q1<{ status: string; result: string | null }>("SELECT status, result FROM rounds WHERE id = ?", roundId);
   if (!round) throw new Error(`round ${roundId} not found`);
-  if (round.status === "scheduled") throw new Error(`round ${roundId} has no result`);
+  // Anything else (no result yet, or one waiting for a second person) must never be paid or refunded.
+  if (round.status !== "resulted" && round.status !== "cancelled") throw new Error(`round ${roundId} has no result`);
   const result = round.status === "resulted" ? json.parse<RoundResult | null>(round.result, null) : null;
   if (round.status === "resulted" && !result) throw new Error(`round ${roundId} has no result`);
   const { rewards } = await getSettings();
 
   let bills = 0;
   let items = 0;
+  const runId = await openRun(roundId, round.status === "resulted" ? "result" : "cancel", now);
+  // A run whose totals did not match waits for a person.
+  if (runId === null) return { bills, items };
   for (;;) {
-    const done = await tx(() => settleChunk(roundId, result, rewards, now));
+    const done = await tx(() => settleChunk(roundId, result, rewards, runId, now));
     if (done.bills === 0) break;
     bills += done.bills;
     items += done.items;
   }
-  await tx(async () => {
-    if (round.status === "cancelled") {
+  await finishRun(roundId, runId, now);
+  invalidate("lobby", "results", `limits:${roundId}`);
+  return { bills, items };
+}
+
+/** The run this round is being settled under, starting one if needed. Null after a mismatch. */
+function openRun(roundId: number, kind: "result" | "cancel", now: number): Promise<number | null> {
+  return tx(async () => {
+    await q1("SELECT id FROM rounds WHERE id = ? FOR UPDATE", roundId);
+    const last = await q1<{ id: number; status: "running" | "done" | "mismatch" }>(
+      "SELECT id, status FROM settlement_runs WHERE round_id = ? ORDER BY id DESC LIMIT 1",
+      roundId,
+    );
+    if (last) return last.status === "mismatch" ? null : last.id;
+    const confirmed = await q1<{ id: number }>("SELECT id FROM round_results WHERE round_id = ? AND status = 'confirmed' ORDER BY id DESC LIMIT 1", roundId);
+    return (
+      await run("INSERT INTO settlement_runs (round_id, round_result_id, kind, created_at) VALUES (?, ?, ?, ?)", roundId, confirmed?.id ?? null, kind, now)
+    ).lastId;
+  });
+}
+
+/**
+ * Close the run once no bill is pending: what the bills say was paid or refunded must equal what the
+ * ledger shows. Only then is the round settled.
+ */
+function finishRun(roundId: number, runId: number, now: number): Promise<void> {
+  return tx(async () => {
+    const round = await q1<{ status: string }>("SELECT status FROM rounds WHERE id = ? FOR UPDATE", roundId);
+    // One statement, so all three figures come from the same moment.
+    const sums = (await q1<{ pending: number | string; bills: number | string; ledger: number | string }>(
+      `SELECT
+         (SELECT COUNT(*) FROM bills WHERE round_id = ? AND status = 'pending') AS pending,
+         (SELECT COALESCE(SUM(CASE WHEN status = 'refunded' THEN total_stake ELSE total_payout END), 0) FROM bills WHERE settlement_run_id = ?) AS bills,
+         (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE run_id = ? AND type IN ('win', 'refund')) AS ledger`,
+      roundId,
+      runId,
+      runId,
+    ))!;
+    if (Number(sums.pending) > 0) return;
+    const report = { bills: Number(sums.bills), ledger: Number(sums.ledger) };
+    if (report.bills !== report.ledger) {
+      await run("UPDATE settlement_runs SET status = 'mismatch', report = ?, finished_at = ? WHERE id = ?", json.str(report), now, runId);
+      await audit(null, "settlement.mismatch", `round:${roundId}`, { runId, ...report }, now);
+      console.error(`[settlement] round ${roundId} run ${runId} does not reconcile: bills ${report.bills}, ledger ${report.ledger}`);
+      return;
+    }
+    await run("UPDATE settlement_runs SET status = 'done', report = ?, finished_at = COALESCE(finished_at, ?) WHERE id = ?", json.str(report), now, runId);
+    if (round?.status === "cancelled") {
       await run("DELETE FROM exposures WHERE round_id = ?", roundId);
       await run("DELETE FROM manual_limits WHERE round_id = ?", roundId);
     }
     await run("UPDATE rounds SET settled_at = ? WHERE id = ? AND settled_at IS NULL", now, roundId);
   });
-  invalidate("lobby", "results", `limits:${roundId}`);
-  return { bills, items };
 }
 
 /** One chunk. `result` null means the round was cancelled and every bill is refunded. */
-async function settleChunk(roundId: number, result: RoundResult | null, rewards: RewardSettings, now: number) {
+async function settleChunk(roundId: number, result: RoundResult | null, rewards: RewardSettings, runId: number, now: number) {
   const chunk = await q<BillRow>(
     "SELECT id, code, user_id, total_stake FROM bills WHERE round_id = ? AND status = 'pending' ORDER BY id LIMIT ? FOR UPDATE",
     roundId,
@@ -90,7 +139,7 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
     const d = deltas.get(userId) ?? { balance: 0, cashback: 0, affiliate: 0, turnover: 0 };
     d[wallet] += amount;
     deltas.set(userId, d);
-    ledger.push([userId, wallet, type, amount, w[wallet], ref, note.slice(0, 255), null, now]);
+    ledger.push([userId, wallet, type, amount, w[wallet], ref, note.slice(0, 255), null, runId, now]);
   };
 
   const itemsByBill = new Map<number, ItemRow[]>();
@@ -99,7 +148,7 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
   if (!result) {
     for (const b of chunk) credit(b.user_id, "balance", b.total_stake, "refund", b.code, "คืนเงิน งวดถูกยกเลิก");
     await run("UPDATE bill_items SET status = 'refunded' WHERE bill_id IN (?) AND status = 'pending'", billIds);
-    await run("UPDATE bills SET status = 'refunded', settled_at = ? WHERE id IN (?)", now, billIds);
+    await run("UPDATE bills SET status = 'refunded', settled_at = ?, settlement_run_id = ? WHERE id IN (?)", now, runId, billIds);
   } else {
     const wonItems: number[] = [];
     const wonBills: [number, number][] = [];
@@ -137,18 +186,19 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
     }
     if (wonItems.length) await run("UPDATE bill_items SET status = 'won', payout = potential WHERE id IN (?)", wonItems);
     await run("UPDATE bill_items SET status = 'lost', payout = 0 WHERE bill_id IN (?) AND status = 'pending'", billIds);
-    if (lostBills.length) await run("UPDATE bills SET status = 'lost', total_payout = 0, settled_at = ? WHERE id IN (?)", now, lostBills);
+    if (lostBills.length) await run("UPDATE bills SET status = 'lost', total_payout = 0, settled_at = ?, settlement_run_id = ? WHERE id IN (?)", now, runId, lostBills);
     if (wonBills.length) {
       await run(
-        `UPDATE bills SET status = 'won', settled_at = ?, total_payout = CASE id ${wonBills.map(() => "WHEN ? THEN ?").join(" ")} END WHERE id IN (?)`,
+        `UPDATE bills SET status = 'won', settled_at = ?, settlement_run_id = ?, total_payout = CASE id ${wonBills.map(() => "WHEN ? THEN ?").join(" ")} END WHERE id IN (?)`,
         now,
+        runId,
         ...wonBills.flat(),
         wonBills.map(([id]) => id),
       );
     }
   }
 
-  await insertMany("transactions", ["user_id", "wallet", "type", "amount", "balance_after", "ref", "note", "actor_id", "created_at"], ledger);
+  await insertMany("transactions", ["user_id", "wallet", "type", "amount", "balance_after", "ref", "note", "actor_id", "run_id", "created_at"], ledger);
   await applyDeltas(deltas);
   return { bills: chunk.length, items: itemRows.length };
 }
