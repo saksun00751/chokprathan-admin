@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { formatBaht } from "chokprathan-core/rules/money";
 import type { ResultFormat } from "chokprathan-core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
-import { EMPTY_RESULT, resultComplete, resultInput, type ResultValues } from "@/components/admin/result-summary";
+import { Digits, EMPTY_RESULT, resultComplete, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/i18n/client";
@@ -136,11 +136,16 @@ export function ConfirmResult({
             type="button"
             loading={pending}
             onClick={async () => {
+              const { winners, bills, payout } = checked.preview;
               const answer = await ask({
                 title: c.confirmTitle,
                 tone: "danger",
-                details: [[t.admin.shell.confirm.round, round]],
-                note: c.confirmNote,
+                // What is about to be paid, digits and money, in front of whoever presses the button.
+                details: [
+                  [t.admin.shell.confirm.round, round],
+                  ...resultPairs(format, v, rf).map(([label, digits]): [string, ReactNode] => [label, <Digits key={label}>{digits}</Digits>]),
+                ],
+                note: `${fmt(c.preview, { winners: formatNumber(winners), bills: formatNumber(bills), payout: formatBaht(payout, { decimals: "auto" }) })} · ${c.confirmNote}`,
                 confirmLabel: c.submit,
               });
               if (answer.ok) send(() => confirmResultAction(roundId, input));
