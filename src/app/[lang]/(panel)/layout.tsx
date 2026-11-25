@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { ExternalLink, LogOut } from "lucide-react";
 import { io } from "next/cache";
 import { Suspense } from "react";
 import { LogoMark } from "@/components/brand/logo";
@@ -25,6 +25,18 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: t.admin.shell.title, template: fmt(t.admin.shell.titleTemplate, { brand: t.common.brand }) },
     robots: { index: false, follow: false },
   };
+}
+
+/** Public address of the member site, shown as a "view site" link. Only http(s) values are used; unset hides the link. */
+function memberSiteUrl(): string | null {
+  const raw = process.env.MEMBER_SITE_URL?.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 async function navState(): Promise<NavState | null> {
@@ -80,6 +92,7 @@ async function AdminName() {
 export default async function AdminLayout({ children }: LayoutProps<"/[lang]">) {
   const { t } = await getI18n();
   const sh = t.admin.shell;
+  const siteUrl = memberSiteUrl();
   return (
     <Provide ns={["admin"]}>
       <ConfirmProvider>
@@ -103,6 +116,17 @@ export default async function AdminLayout({ children }: LayoutProps<"/[lang]">) 
                   <span className="font-semibold">{sh.title}</span>
                 </Link>
                 <div className="flex-1" />
+                {siteUrl && (
+                  <a
+                    href={siteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium text-ink-2 hover:bg-panel hover:text-ink"
+                  >
+                    <ExternalLink className="size-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">{sh.viewSite}</span>
+                  </a>
+                )}
                 <LanguageSwitcher />
                 <div className="hidden sm:block">
                   <Suspense fallback={null}>
