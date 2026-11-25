@@ -2,6 +2,7 @@ import "server-only";
 import { buildRoundConfig, type RoundConfig, type RoundConfigInput } from "chokprathan-core/rules/roundConfig";
 import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
 import { json, q, q1, run, tx } from "@/server/db";
+import { audit } from "./audit";
 import { mirrorLegacyConfig } from "./config-mirror";
 import { listLottos } from "./lottos";
 import { getSettings } from "./settings";
@@ -103,6 +104,31 @@ export async function getRoundConfig(roundId: number): Promise<{ version: number
   const row = await q1<{ version: number; config: string }>("SELECT version, config FROM round_configs WHERE round_id = ? ORDER BY version DESC LIMIT 1", roundId);
   const config = row && json.parse<RoundConfig | null>(row.config, null);
   return row && config ? { version: row.version, config } : undefined;
+}
+
+export type ApplyOutcome = { ok: true; version: number } | { ok: false; error: "notFound" | "notOpen" | "unchanged" | "noConfig" };
+
+/**
+ * Put the current settings onto one round that already has bills, as a new version. Bills accepted so
+ * far keep their prices; the ones after this are priced from the new version.
+ */
+export async function applyConfigToRound(roundId: number, actorId: number, now = Date.now(), ip: string | null = null): Promise<ApplyOutcome> {
+  await mirrorLegacyConfig(now);
+  const configs = await currentConfigs();
+  return tx(async (): Promise<ApplyOutcome> => {
+    // Exclusive: waits for bets in flight, which hold the round shared.
+    const round = await q1<{ lotto_id: number; status: string; closes_at: number }>("SELECT lotto_id, status, closes_at FROM rounds WHERE id = ? FOR UPDATE", roundId);
+    if (!round) return { ok: false, error: "notFound" };
+    if (round.status !== "scheduled" || now >= round.closes_at) return { ok: false, error: "notOpen" };
+    const last = await q1<{ version: number; config: string }>("SELECT version, config FROM round_configs WHERE round_id = ? ORDER BY version DESC LIMIT 1", roundId);
+    const want = configs.get(round.lotto_id);
+    if (!last || want === undefined) return { ok: false, error: "noConfig" };
+    if (want === last.config) return { ok: false, error: "unchanged" };
+    const version = last.version + 1;
+    await run("INSERT INTO round_configs (round_id, version, config, created_at, created_by) VALUES (?, ?, ?, ?, ?)", roundId, version, want, now, actorId);
+    await audit(actorId, "round.config", `round:${roundId}`, { from: last.version, to: version }, now, ip);
+    return { ok: true, version };
+  });
 }
 
 /**

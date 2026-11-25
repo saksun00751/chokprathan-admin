@@ -14,6 +14,7 @@ import type { DepositRow, WithdrawalRow } from "@/server/services/finance";
 import { listGroups } from "@/server/services/lotto-groups";
 import { getLotto, listLottos, type Lotto } from "@/server/services/lottos";
 import { listDebts } from "@/server/services/debts";
+import { listPackages } from "@/server/services/packages";
 import { exposureTable, manualLimitList, roundBetConfigs, roundTotals } from "@/server/services/risk";
 import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
@@ -216,6 +217,8 @@ export async function getAdminRound(roundId: number) {
   return {
     serverNow: now,
     canResult: can(viewer, "rounds.result"),
+    // Only a draw that already has bills keeps old prices; the others follow the settings by themselves.
+    canApplyConfig: can(viewer, "lottos.manage") && round.status === "scheduled" && now < round.closesAt && totals.bills > 0,
     // Only a draw that is resulted and fully paid can be asked to change.
     correction:
       canCorrect && round.status === "resulted" && (change !== undefined || (round.settledAt !== null && lastRun?.status === "done"))
@@ -495,6 +498,14 @@ export async function getAdminLottos(): Promise<Lotto[]> {
   await requireEmployee("lottos.manage");
   await io();
   return listLottos({ includeDisabled: true });
+}
+
+export async function getAdminPackages() {
+  const { t } = await getI18n();
+  await requireEmployee("lottos.manage");
+  await io();
+  const [packages, lottos] = await Promise.all([listPackages(), listLottos({ includeDisabled: true })]);
+  return { packages, lottos: lottos.map((l) => ({ id: l.id, name: lottoName(l, t), format: l.format as ResultFormat })) };
 }
 
 export async function getAdminLottoGroups(): Promise<LottoGroupInfo[]> {

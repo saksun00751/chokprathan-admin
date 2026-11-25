@@ -16,6 +16,7 @@ export const shell: typeof th = {
     results: "ປ້ອນຜົນລາງວັນ",
     risk: "ອັດຕາຈ່າຍ ແລະ ເກນອັ້ນ",
     lottos: "ປະເພດຫວຍ",
+    packages: "ແພັກເກັດລາຄາ",
     games: "ເກມ ສະລັອດ ຄາສິໂນ",
     members: "ສະມາຊິກ",
     blocklist: "ບລັອກສະມາຊິກ",

@@ -15,6 +15,7 @@ export const shell = {
     results: "กรอกผลรางวัล",
     risk: "อัตราจ่ายและเกณฑ์อั้น",
     lottos: "ประเภทหวย",
+    packages: "แพ็กเกจราคา",
     games: "เกม สล็อต คาสิโน",
     members: "สมาชิก",
     blocklist: "บล็อกสมาชิก",

@@ -12,6 +12,7 @@ import {
   Landmark,
   LayoutDashboard,
   Newspaper,
+  Package,
   Palette,
   ScrollText,
   Settings,
@@ -31,6 +32,7 @@ type ItemKey =
   | "results"
   | "risk"
   | "lottos"
+  | "packages"
   | "games"
   | "members"
   | "blocklist"
@@ -64,6 +66,7 @@ export const NAV_GROUPS: { key: "overview" | "lotto" | "members" | "marketing" |
       { href: "/results", key: "results", icon: ClipboardCheck, need: "rounds.result", also: ["rounds.confirm", "rounds.correct"], badge: "results" },
       { href: "/risk", key: "risk", icon: Gauge, need: "risk.manage" },
       { href: "/lottos", key: "lottos", icon: Ticket, need: "lottos.manage" },
+      { href: "/packages", key: "packages", icon: Package, need: "lottos.manage" },
       { href: "/games", key: "games", icon: Gamepad2, need: "games.manage" },
     ],
   },

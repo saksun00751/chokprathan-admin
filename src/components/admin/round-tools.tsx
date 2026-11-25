@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { RateChip } from "@/components/ui/rate-chip";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { cancelRoundAction, closeRoundAction, enterResultAction, setManualLimitAction } from "@/server/actions/admin";
+import { applyRoundConfigAction, cancelRoundAction, closeRoundAction, enterResultAction, setManualLimitAction } from "@/server/actions/admin";
 import type { ExposureRow } from "@/server/services/risk";
 
 const digitInput =
@@ -107,6 +107,31 @@ export function CloseRoundButton({ roundId, round }: { roundId: number; round: s
       }}
     >
       {c.close}
+    </Button>
+  );
+}
+
+export function ApplyConfigButton({ roundId, round }: { roundId: number; round: string }) {
+  const { t } = useI18n();
+  const p = t.admin.ops.packages;
+  const ask = useConfirm();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  return (
+    <Button
+      variant="secondary"
+      loading={pending}
+      onClick={async () => {
+        const answer = await ask({ title: p.applyTitle, tone: "danger", details: [[t.admin.shell.confirm.round, round]], note: p.applyNote, confirmLabel: p.apply });
+        if (!answer.ok) return;
+        start(async () => {
+          const r = await applyRoundConfigAction(roundId);
+          if (r.ok) toast.success(r.message ?? p.apply);
+          else toast.error(r.error);
+        });
+      }}
+    >
+      {p.apply}
     </Button>
   );
 }

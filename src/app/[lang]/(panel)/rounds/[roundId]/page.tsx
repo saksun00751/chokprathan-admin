@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmResult } from "@/components/admin/confirm-result";
 import { CorrectionPanel } from "@/components/admin/correction-panel";
-import { CancelRoundButton, CloseRoundButton, ExposurePanel, ResultForm } from "@/components/admin/round-tools";
+import { ApplyConfigButton, CancelRoundButton, CloseRoundButton, ExposurePanel, ResultForm } from "@/components/admin/round-tools";
 import { Figure, PHASE_TONE } from "@/components/admin/ui";
 import { ResultDigits } from "@/components/lotto/result-digits";
 import { Countdown, ServerTimeSync } from "@/components/ui/clock";
@@ -47,12 +47,15 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
         }
         description={fmt(rd.times, { opens: formatDateTime(round.opensAt, lang), closes: formatDateTime(round.closesAt, lang), draw: formatDateTime(round.drawAt, lang) })}
         actions={
-          data.canCancel && (round.phase === "open" || round.phase === "closed" || round.phase === "confirming") ? (
-            <span className="flex flex-wrap gap-2">
-              {round.phase === "open" && <CloseRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />}
-              <CancelRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />
-            </span>
-          ) : undefined
+          <span className="flex flex-wrap gap-2">
+            {data.canApplyConfig && <ApplyConfigButton roundId={round.id} round={`${lotto.name} ${round.label}`} />}
+            {data.canCancel && (round.phase === "open" || round.phase === "closed" || round.phase === "confirming") && (
+              <>
+                {round.phase === "open" && <CloseRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />}
+                <CancelRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />
+              </>
+            )}
+          </span>
         }
       />
 

@@ -65,9 +65,9 @@ GRANT SELECT, UPDATE ON lotto.point_guesses TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.lotto_groups TO 'chok_admin'@'%';
 
 -- Price packages, bet types, risk profiles and the per-round copy of them.
-GRANT SELECT, INSERT ON lotto.price_packages TO 'chok_admin'@'%';
-GRANT SELECT, INSERT ON lotto.lotto_packages TO 'chok_admin'@'%';
-GRANT SELECT, INSERT, UPDATE ON lotto.package_rates TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.price_packages TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, DELETE ON lotto.lotto_packages TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.package_rates TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.risk_profiles TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.lotto_bet_types TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.round_configs TO 'chok_admin'@'%';

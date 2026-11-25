@@ -41,9 +41,10 @@ import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
 import { writeOffDebt } from "@/server/services/debts";
 import { checkCorrection, confirmCorrection, rejectCorrection, requestCorrection, type CorrectionPreview } from "@/server/services/correction";
+import { savePackage, setLottoPackage, type Overrides, type PackageInput } from "@/server/services/packages";
 import { checkResult, confirmResult, enterResult, rejectResult, type PayoutPreview, type ResultField } from "@/server/services/results";
 import { cancelRound, closeRoundNow, reconcileRounds, createRound } from "@/server/services/rounds";
-import { refreshRoundConfigs } from "@/server/services/round-configs";
+import { applyConfigToRound, refreshRoundConfigs } from "@/server/services/round-configs";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
 import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
 import { InsufficientFundsError, move } from "@/server/services/wallet";
@@ -177,6 +178,48 @@ export async function rejectCorrectionAction(roundId: number): Promise<ActionRes
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
   const r = await rejectCorrection(roundId, g.viewer.id);
   return r.ok ? done(g.e.admin.correctionRejected) : { ok: false, error: r.error };
+}
+
+/** Rate and discount per bet type as sent by the form; anything else is dropped. */
+const packageRateSchema = z.object({ rate100: z.number(), discountBp: z.number() });
+const packageSchema = z.object({ name: z.string().max(200), sort: z.number(), active: z.boolean(), rates: z.record(z.string(), packageRateSchema) });
+const offerSchema = z.object({
+  offered: z.boolean(),
+  overrides: z.record(z.string(), z.object({ rate100: z.number().nullable(), discountBp: z.number().nullable() })),
+});
+
+export async function savePackageAction(id: number | null, input: unknown): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  if (id !== null && !isId(id)) return { ok: false, error: g.e.admin.packageMissing };
+  const parsed = packageSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: g.e.generic.invalid };
+  const r = await savePackage(id, parsed.data as PackageInput, g.viewer.id, Date.now(), g.ip);
+  if (r.ok) return done(g.e.admin.packageSaved);
+  const why = { standard: g.e.admin.packageStandard, name: g.e.admin.packageName, noRates: g.e.admin.packageNoRates, rate: g.e.admin.packageRate, discount: g.e.admin.packageDiscount, notFound: g.e.admin.packageMissing };
+  return { ok: false, error: why[r.error] };
+}
+
+export async function setLottoPackageAction(lottoId: number, packageId: number, input: unknown): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  const parsed = offerSchema.safeParse(input);
+  if (!isId(lottoId) || !isId(packageId) || !parsed.success) return { ok: false, error: g.e.generic.invalid };
+  const r = await setLottoPackage(lottoId, packageId, { offered: parsed.data.offered, overrides: parsed.data.overrides as Overrides }, g.viewer.id, Date.now(), g.ip);
+  if (r.ok) return done(g.e.admin.packageOffered);
+  const why = { standard: g.e.admin.packageStandard, rate: g.e.admin.packageRate, discount: g.e.admin.packageDiscount, notFound: g.e.admin.packageMissing };
+  return { ok: false, error: why[r.error] };
+}
+
+/** Put the current settings onto a draw that already has bills; only later bills are priced by them. */
+export async function applyRoundConfigAction(roundId: number): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await applyConfigToRound(roundId, g.viewer.id, Date.now(), g.ip);
+  if (r.ok) return done(g.e.admin.roundConfigApplied);
+  const why = { notFound: g.e.rounds.notFound, notOpen: g.e.admin.roundConfigNotOpen, unchanged: g.e.admin.roundConfigUnchanged, noConfig: g.e.admin.roundConfigNone };
+  return { ok: false, error: why[r.error] };
 }
 
 export async function closeRoundAction(roundId: number): Promise<ActionResult> {

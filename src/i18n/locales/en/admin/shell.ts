@@ -16,6 +16,7 @@ export const shell: typeof th = {
     results: "Enter results",
     risk: "Rates & cut thresholds",
     lottos: "Lotteries",
+    packages: "Price packages",
     games: "Slots & casino",
     members: "Members",
     blocklist: "Blocked members",

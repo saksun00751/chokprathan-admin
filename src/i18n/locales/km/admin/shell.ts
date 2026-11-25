@@ -16,6 +16,7 @@ export const shell: typeof th = {
     results: "បញ្ចូលលទ្ធផល",
     risk: "អត្រាសង និងកម្រិតកំណត់",
     lottos: "ប្រភេទឆ្នោត",
+    packages: "កញ្ចប់តម្លៃ",
     games: "ស្លុត និងកាស៊ីណូ",
     members: "សមាជិក",
     blocklist: "សមាជិកដែលត្រូវហាមឃាត់",

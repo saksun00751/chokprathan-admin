@@ -3,7 +3,7 @@ import { invalidate } from "@/server/cache";
 import { json, q, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
 import { roundBetConfigs } from "./risk";
-import { getRoundConfig, refreshRoundConfigs } from "./round-configs";
+import { applyConfigToRound, getRoundConfig, refreshRoundConfigs } from "./round-configs";
 
 const now = 1_000_000;
 
@@ -86,6 +86,37 @@ describe.skipIf(!hasTestDb)("round configs on MariaDB", () => {
     await setRate(70000);
     await refreshRoundConfigs(now);
     expect(await top3Rate()).toBe(80000);
+  });
+
+  test("staff can push new settings onto a round with bills: a new version, old bills unmoved", async () => {
+    await refreshRoundConfigs(now);
+    await addBill();
+    await run("UPDATE bills SET config_version = 1");
+    await setRate(70000);
+    await refreshRoundConfigs(now);
+    expect(await applyConfigToRound(roundId, 5, now)).toEqual({ ok: true, version: 2 });
+    expect(await top3()).toBe(70000);
+    expect(await q("SELECT config_version FROM bills")).toEqual([{ config_version: 1 }]);
+    expect(await q("SELECT version, created_by FROM round_configs WHERE round_id = ? ORDER BY version", roundId)).toEqual([
+      { version: 1, created_by: null },
+      { version: 2, created_by: 5 },
+    ]);
+    expect(await q("SELECT actor_id FROM audit_log WHERE action = 'round.config'")).toEqual([{ actor_id: 5 }]);
+    // The sync job leaves it alone.
+    await setRate(60000);
+    await refreshRoundConfigs(now);
+    expect(await top3()).toBe(70000);
+  });
+
+  test("refuses when nothing changed, the round is not open for it, or has no config", async () => {
+    expect(await applyConfigToRound(999999, 5, now)).toEqual({ ok: false, error: "notFound" });
+    expect(await applyConfigToRound(roundId, 5, now)).toEqual({ ok: false, error: "noConfig" });
+    await refreshRoundConfigs(now);
+    expect(await applyConfigToRound(roundId, 5, now)).toEqual({ ok: false, error: "unchanged" });
+    await setRate(70000);
+    expect(await applyConfigToRound(roundId, 5, now + 1000)).toEqual({ ok: false, error: "notOpen" });
+    await run("UPDATE rounds SET status = 'cancelled' WHERE id = ?", roundId);
+    expect(await applyConfigToRound(roundId, 5, now)).toEqual({ ok: false, error: "notOpen" });
   });
 
   test("leaves closed rounds alone", async () => {
