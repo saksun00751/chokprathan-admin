@@ -354,14 +354,14 @@ function finishCorrection(roundId: number, runId: number, plan: Awaited<ReturnTy
       return;
     }
     for (const { bill, now: next, items } of plan.after) {
+      // settled_at stays: reports restate the day the bill was paid instead of counting it twice.
       await run(
-        "UPDATE bills SET status = ?, total_payout = ?, cashback_paid = ?, aff1_paid = ?, aff2_paid = ?, settled_at = ?, settlement_run_id = ? WHERE id = ?",
+        "UPDATE bills SET status = ?, total_payout = ?, cashback_paid = ?, aff1_paid = ?, aff2_paid = ?, settlement_run_id = ? WHERE id = ?",
         next.status,
         next.payout,
         next.cashback,
         next.aff1,
         next.aff2,
-        now,
         runId,
         bill.id,
       );

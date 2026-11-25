@@ -72,7 +72,7 @@ export async function buildSpan(from: number, to: number, now = Date.now()): Pro
       ),
       q<{ dk: number; user_id: number; s: number | null }>(
         `SELECT ${DK("created_at")} AS dk, user_id, SUM(amount) AS s
-         FROM transactions WHERE created_at >= ? AND created_at < ? AND type = 'aff_earn' GROUP BY dk, user_id`,
+         FROM transactions WHERE created_at >= ? AND created_at < ? AND type IN ('aff_earn','aff_correction') GROUP BY dk, user_id`,
         ...span,
       ),
       q<{ hk: number; user_id: number; n: number; s: number | null }>(
@@ -182,10 +182,21 @@ export async function buildSpan(from: number, to: number, now = Date.now()): Pro
   return { days: [...days.values()], users: [...users.values()] };
 }
 
-/** Days with bills whose status changed since `sinceMs`: every change after placement stamps settled_at. */
+/**
+ * Days to rebuild because bills changed since `sinceMs`. Every change after placement stamps
+ * settled_at, except a result correction, which keeps it: the bills of a correction finished since
+ * then mark both the day they were placed and the day they were paid.
+ */
 export async function changedDays(sinceMs: number): Promise<number[]> {
   const rows = await q<{ dk: number }>(`SELECT DISTINCT ${DK("created_at")} AS dk FROM bills WHERE settled_at >= ?`, sinceMs);
-  return rows.map((r) => num(r.dk));
+  const corrected = (column: string) =>
+    q<{ dk: number }>(
+      `SELECT DISTINCT ${DK(column)} AS dk FROM bills b JOIN settlement_runs s ON s.id = b.settlement_run_id
+       WHERE s.kind IN ('correction','void') AND s.finished_at >= ?`,
+      sinceMs,
+    );
+  const [placed, paid] = await Promise.all([corrected("b.created_at"), corrected("b.settled_at")]);
+  return [...new Set([...rows, ...placed, ...paid].map((r) => num(r.dk)))];
 }
 
 /** The first day anything happened (bills, members, money), or null on an empty install. */

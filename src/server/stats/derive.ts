@@ -56,6 +56,10 @@ export function sumSettled(days: DayStats[]) {
   return { stake, payout };
 }
 
+/** Rewards earned, net of what a result correction paid or took back. */
+export const CASHBACK_TYPES = ["cashback_earn", "cashback_correction"] as const;
+export const AFFILIATE_TYPES = ["aff_earn", "aff_correction"] as const;
+
 /** Sum of transactions of the given types, optionally only from the given wallets. */
 export function sumTx(days: DayStats[], types: readonly string[], wallets?: readonly string[]): number {
   let s = 0;

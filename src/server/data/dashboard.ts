@@ -17,7 +17,7 @@ import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
 import { schedulerState } from "@/server/services/scheduler";
 import { mongoPing } from "@/server/mongo";
-import { seriesOf, sumLottos, sumMoney, sumPlaced, sumSettled, sumTx } from "@/server/stats/derive";
+import { seriesOf, sumLottos, sumMoney, sumPlaced, sumSettled, sumTx, AFFILIATE_TYPES, CASHBACK_TYPES } from "@/server/stats/derive";
 import { rangeStats, type RangeStats } from "@/server/stats/store";
 import { requireEmployee } from "@/server/session";
 
@@ -30,7 +30,7 @@ async function bettingTotals(s: RangeStats) {
 
 function rewardCosts(s: RangeStats) {
   const d = s.days;
-  return { bonus: sumTx(d, ["bonus"]), voucher: sumTx(d, ["voucher"]), cashback: sumTx(d, ["cashback_earn"]), affiliate: sumTx(d, ["aff_earn"]), adjust: sumTx(d, ["adjust"]) };
+  return { bonus: sumTx(d, ["bonus"]), voucher: sumTx(d, ["voucher"]), cashback: sumTx(d, CASHBACK_TYPES), affiliate: sumTx(d, AFFILIATE_TYPES), adjust: sumTx(d, ["adjust"]) };
 }
 
 function moneyTotals(s: RangeStats) {

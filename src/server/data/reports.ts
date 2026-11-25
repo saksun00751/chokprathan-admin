@@ -7,7 +7,7 @@ import { groupName } from "@/domain/lotto-groups";
 import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
-import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx } from "@/server/stats/derive";
+import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx, AFFILIATE_TYPES, CASHBACK_TYPES } from "@/server/stats/derive";
 import { rangeStats, roundStats, type RangeStats } from "@/server/stats/store";
 import { can, type Employee } from "@/server/services/employee-auth";
 import { listGroups } from "@/server/services/lotto-groups";
@@ -67,7 +67,7 @@ async function daily(r: DateRange, s: RangeStats, R: ReportsDict): Promise<Repor
     const placed = sumPlaced(d);
     const settled = sumSettled(d);
     const ggr = settled.stake - settled.payout;
-    const rewards = sumTx(d, ["bonus", "voucher", "cashback_earn", "aff_earn"]);
+    const rewards = sumTx(d, ["bonus", "voucher", ...CASHBACK_TYPES, ...AFFILIATE_TYPES]);
     return {
       day: k.startMs,
       bills: placed.bills,
@@ -77,8 +77,8 @@ async function daily(r: DateRange, s: RangeStats, R: ReportsDict): Promise<Repor
       payout: settled.payout,
       ggr,
       bonus: sumTx(d, ["bonus", "voucher"]),
-      cashback: sumTx(d, ["cashback_earn"]),
-      affiliate: sumTx(d, ["aff_earn"]),
+      cashback: sumTx(d, CASHBACK_TYPES),
+      affiliate: sumTx(d, AFFILIATE_TYPES),
       ngr: ggr - rewards,
       deposits: x?.deposits.sum ?? 0,
       withdrawals: x?.withdrawals.sum ?? 0,
@@ -374,9 +374,9 @@ async function rewards(r: DateRange, s: RangeStats, R: ReportsDict): Promise<Rep
       const d = x ? [x] : [];
       return {
         day: k.startMs,
-        cashbackEarn: sumTx(d, ["cashback_earn"], REWARD_WALLETS),
+        cashbackEarn: sumTx(d, CASHBACK_TYPES, REWARD_WALLETS),
         cashbackClaim: -sumTx(d, ["cashback_claim"], REWARD_WALLETS),
-        affEarn: sumTx(d, ["aff_earn"], REWARD_WALLETS),
+        affEarn: sumTx(d, AFFILIATE_TYPES, REWARD_WALLETS),
         affClaim: -sumTx(d, ["aff_transfer"], REWARD_WALLETS),
       };
     }),

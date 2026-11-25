@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { invalidate } from "@/server/cache";
 import { json, q, q1, run } from "@/server/db";
+import { changedDays } from "@/server/stats/build";
+import { dayOf } from "@/server/stats/derive";
+import { DAY } from "chokprathan-core/rules/time";
 import { hasTestDb, resetDb } from "@/test/db";
 import { applyCorrection, checkCorrection, confirmCorrection, rejectCorrection, requestCorrection } from "./correction";
 import { approveDeposit, approveWithdrawal } from "./finance";
@@ -178,6 +181,17 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     expect(await owed(member)).toBe(74_900);
     const log = await q<{ detail: string | null }>("SELECT detail FROM audit_log WHERE action IN ('round.correction.request','round.result.mismatch')");
     expect(JSON.stringify(log)).not.toContain("911");
+  });
+
+  test("keeps the day a bill was paid, and has reports rebuild both its days", async () => {
+    await bill("CPM", member, "25");
+    await run("UPDATE rounds SET status = 'resulted', result = ?, resulted_at = 5 WHERE id = ?", json.str(WIN), round);
+    await settlePending(round, 3 * DAY);
+    const later = 10 * DAY;
+    await requestCorrection(round, { kind: "correction", input: LOSE }, "wrong result", ASKER, later);
+    expect(await confirmCorrection(round, LOSE, APPROVER, later)).toEqual({ ok: true });
+    expect(await q1("SELECT settled_at FROM bills WHERE code = 'CPM'")).toEqual({ settled_at: 3 * DAY });
+    expect((await changedDays(later - 1)).sort((a, b) => a - b)).toEqual([dayOf(1), dayOf(3 * DAY)]);
   });
 
   test("a rejected request changes nothing", async () => {
