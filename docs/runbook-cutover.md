@@ -455,6 +455,19 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ---
 
+## แทงจากค่าประจำงวด (member migration 13)
+
+ลำดับสำคัญ: หน้าแทงรุ่นใหม่ไม่รับโพยของงวดที่ยังไม่มีค่าประจำงวด
+
+1. `cd "$MEMBER_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate`
+2. deploy **admin ก่อน** (ต้องเสร็จขั้นของ migration 12 แล้ว)
+3. **Verify:** ทุกงวดที่ยังเปิดมีค่า: `SELECT COUNT(*) FROM rounds r WHERE r.status='scheduled' AND r.closes_at > UNIX_TIMESTAMP()*1000 AND NOT EXISTS (SELECT 1 FROM round_configs c WHERE c.round_id=r.id)` ได้ 0
+4. deploy member
+
+**Verify:** วางโพยทดสอบหนึ่งใบได้ และ `bills.config_version` ไม่เป็น NULL
+
+---
+
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
 1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน

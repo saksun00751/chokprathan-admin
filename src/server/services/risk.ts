@@ -1,10 +1,13 @@
 import "server-only";
 import { marginalRate100 } from "chokprathan-core/rules/pricing";
+import { betRules } from "chokprathan-core/rules/quote";
+import type { RoundConfig } from "chokprathan-core/rules/roundConfig";
 import type { BetTypeCode, ManualLimit } from "chokprathan-core/rules/types";
 import { invalidate, memo } from "@/server/cache";
-import { afterCommit, q, q1, run } from "@/server/db";
+import { afterCommit, q, q1, run, tolerateMissingTable } from "@/server/db";
 import { audit } from "./audit";
 import { betConfigs, getLotto, listLottos, type BetConfig } from "./lottos";
+import { getRoundConfig } from "./round-configs";
 import { getRound } from "./rounds";
 import { getSettings } from "./settings";
 
@@ -24,6 +27,13 @@ type ExposureLite = { round_id: number; bet_type: BetTypeCode; number: string; t
 
 const toLimit = (r: Pick<ManualRow, "kind" | "percent">): ManualLimit =>
   r.kind === "closed" ? { kind: "closed" } : { kind: "percent", percent: r.percent ?? 100 };
+
+/** A round's own prices (its first package); the lottery's current ones until it has a config. */
+const configsOf = (own: RoundConfig | undefined, current: () => BetConfig[]): BetConfig[] =>
+  own ? betRules(own).map((c) => ({ ...c, customRisk: false })) : current();
+
+// The table arrives with member migration 12.
+const ownConfig = async (roundId: number) => (await tolerateMissingTable(() => getRoundConfig(roundId), undefined))?.config;
 
 /** The smallest total at which any profile starts cutting: rows below it can never carry a badge. */
 function cutFloor(configs: BetConfig[]): number {
@@ -67,12 +77,13 @@ export async function limitsForRounds(roundIds: number[]): Promise<Map<number, L
   if (roundIds.length === 0) return out;
   const [settings, lottos] = await Promise.all([getSettings(), listLottos({ includeDisabled: true })]);
   const rounds = await q<{ id: number; lotto_id: number }>("SELECT id, lotto_id FROM rounds WHERE id IN (?)", roundIds);
+  const stored = new Map(await Promise.all(rounds.map(async (r) => [r.id, await ownConfig(r.id)] as const)));
   const configsByRound = new Map<number, Map<BetTypeCode, BetConfig>>();
   let floor = Number.MAX_SAFE_INTEGER;
   for (const r of rounds) {
     const lotto = lottos.find((l) => l.id === r.lotto_id);
     if (!lotto) continue;
-    const configs = betConfigs(lotto, settings);
+    const configs = configsOf(stored.get(r.id), () => betConfigs(lotto, settings));
     floor = Math.min(floor, cutFloor(configs));
     configsByRound.set(r.id, new Map(configs.map((c) => [c.code, c])));
   }
@@ -145,7 +156,8 @@ export async function exposureTable(roundId: number, { betType, limit = 60 }: { 
   const lotto = round && (await getLotto(round.lottoId));
   if (!round || !lotto) return [];
   const settings = await getSettings();
-  const configs = new Map(betConfigs(lotto, settings).map((c) => [c.code, c]));
+  const own = await ownConfig(roundId);
+  const configs = new Map(configsOf(own, () => betConfigs(lotto, settings)).map((c) => [c.code, c]));
   const manualRows = await q<ManualRow>("SELECT round_id, bet_type, number, kind, percent FROM manual_limits WHERE round_id = ?", roundId);
   const manual = new Map(manualRows.map((m) => [keyOf(m.bet_type, m.number), toLimit(m)]));
   const rows = await q<{ bet_type: BetTypeCode; number: string; total_stake: number; potential: number }>(

@@ -876,6 +876,7 @@ export function SettingsForm({
         after: s.announcementI18n?.[l] ?? "",
       })),
       { label: st.cancelWindow, before: String(a.site.cancelWindowMin), after: String(s.cancelWindowMin) },
+      { label: st.cancelCutoff, before: String(a.site.cancelCutoffMin), after: String(s.cancelCutoffMin) },
       { label: st.registration, before: onOff(a.site.registrationOpen), after: onOff(s.registrationOpen) },
       { label: st.otp, before: onOff(a.site.otpRequired), after: onOff(s.otpRequired) },
       { label: st.staffTotp, before: onOff(a.site.staffTotpRequired), after: onOff(s.staffTotpRequired) },
@@ -952,6 +953,7 @@ export function SettingsForm({
             {lang !== "th" && <p className="text-xs text-ink-3">{ct.langHint}</p>}
           </div>
           <Num label={st.cancelWindow} value={String(s.cancelWindowMin)} onChange={(v) => setS({ ...s, cancelWindowMin: Math.round(Number(v) || 0) })} />
+          <Num label={st.cancelCutoff} value={String(s.cancelCutoffMin)} onChange={(v) => setS({ ...s, cancelCutoffMin: Math.round(Number(v) || 0) })} />
         </div>
         <div className="mt-4 flex flex-col gap-2.5 text-sm">
           <Check checked={s.registrationOpen} onChange={(v) => setS({ ...s, registrationOpen: v })}>

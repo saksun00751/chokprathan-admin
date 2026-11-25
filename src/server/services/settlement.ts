@@ -12,7 +12,7 @@ import type { TxType, WalletKind } from "./wallet";
 const CHUNK = Math.max(1, Number(process.env.SETTLE_CHUNK) || 500);
 
 type BillRow = { id: number; code: string; user_id: number; total_stake: number };
-type ItemRow = { id: number; bill_id: number; bet_type: BetTypeCode; number: string; stake: number; potential: number };
+type ItemRow = { id: number; bill_id: number; bet_type: BetTypeCode; number: string; stake: number; discount: number; potential: number };
 type Wallets = { balance: number; cashback: number; affiliate: number };
 
 /**
@@ -57,7 +57,7 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
   if (chunk.length === 0) return { bills: 0, items: 0 };
   const billIds = chunk.map((b) => b.id);
   const itemRows = await q<ItemRow>(
-    "SELECT id, bill_id, bet_type, number, stake, potential FROM bill_items WHERE bill_id IN (?) AND status = 'pending'",
+    "SELECT id, bill_id, bet_type, number, stake, discount, potential FROM bill_items WHERE bill_id IN (?) AND status = 'pending'",
     billIds,
   );
 
@@ -106,7 +106,8 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
     const lostBills: number[] = [];
     for (const b of chunk) {
       let payout = 0;
-      let lostStake = 0;
+      // satang actually paid for the lines that lost
+      let lostPaid = 0;
       let won = false;
       for (const it of itemsByBill.get(b.id) ?? []) {
         if (isWinning(it.bet_type, it.number, result)) {
@@ -114,14 +115,14 @@ async function settleChunk(roundId: number, result: RoundResult | null, rewards:
           payout += it.potential;
           wonItems.push(it.id);
         } else {
-          lostStake += it.stake;
+          lostPaid += it.stake * 100 - it.discount;
         }
       }
       if (won) wonBills.push([b.id, payout]);
       else lostBills.push(b.id);
 
       credit(b.user_id, "balance", payout, "win", b.code, "ถูกรางวัล");
-      credit(b.user_id, "cashback", Math.floor((lostStake * 100 * rewards.cashbackBp) / 10_000), "cashback_earn", b.code, "คืนยอดเสีย");
+      credit(b.user_id, "cashback", Math.floor((lostPaid * rewards.cashbackBp) / 10_000), "cashback_earn", b.code, "คืนยอดเสีย");
       const owner = owners.get(b.user_id);
       const tiers: [number | null | undefined, number][] = [
         [owner?.upline1_id, rewards.aff1Bp],

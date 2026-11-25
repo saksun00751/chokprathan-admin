@@ -762,11 +762,12 @@ export async function saveSettingsAction(input: {
     rewards.aff1Bp,
     rewards.aff2Bp,
     site.cancelWindowMin,
+    site.cancelCutoffMin,
   ];
   if (ints.some((n) => !Number.isInteger(n) || n < 0)) return { ok: false, error: g.e.admin.settingsInts };
   if (wallet.depositMin > wallet.depositMax || wallet.withdrawMin > wallet.withdrawMax) return { ok: false, error: g.e.admin.settingsMinMax };
   if (wallet.depositWindowMin < 5 || wallet.depositWindowMin > 180) return { ok: false, error: g.e.admin.settingsWindow };
-  if (site.cancelWindowMin > 120) return { ok: false, error: g.e.admin.settingsCancel };
+  if (site.cancelWindowMin > 120 || site.cancelCutoffMin > 120) return { ok: false, error: g.e.admin.settingsCancel };
   if (rewards.cashbackBp > 5000 || rewards.aff1Bp > 1000 || rewards.aff2Bp > 1000) return { ok: false, error: g.e.admin.settingsPercent };
   if (wallet.adjustMin < 1_00 || wallet.adjustMin > wallet.adjustMax || wallet.adjustMax > ADJUST_CEILING)
     return { ok: false, error: g.e.admin.settingsAdjust };
@@ -786,6 +787,7 @@ export async function saveSettingsAction(input: {
       ),
     ) as SiteSettings["announcementI18n"],
     cancelWindowMin: site.cancelWindowMin,
+    cancelCutoffMin: site.cancelCutoffMin,
     staffTotpRequired: !!site.staffTotpRequired,
   };
   if (current.install.mode === "production" && (nextSite.demoMode || nextSite.simulateCrowd)) {

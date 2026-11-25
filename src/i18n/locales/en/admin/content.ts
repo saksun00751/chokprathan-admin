@@ -286,6 +286,7 @@ export const content: typeof th = {
     phone: "Contact phone",
     announcement: "Home page announcement (leave empty to hide)",
     cancelWindow: "Bills can be cancelled within (minutes)",
+    cancelCutoff: "No cancelling this close to closing (minutes)",
     registration: "Open for new sign-ups",
     otp: "Verify phone numbers by SMS at sign-up and password reset",
     smsMissing: "(no SMS provider set up on the server yet)",

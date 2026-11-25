@@ -152,6 +152,8 @@ export interface SiteSettings {
   /** The announcement in other languages; empty falls back to the Thai text. */
   announcementI18n: Partial<Record<"en" | "lo" | "my" | "km", string>>;
   cancelWindowMin: number;
+  /** No cancelling in the last this-many minutes before a round closes. */
+  cancelCutoffMin: number;
   /** Every staff member must turn on 2-step sign-in before using the back office. */
   staffTotpRequired: boolean;
 }
@@ -171,5 +173,6 @@ export const DEFAULT_SITE: SiteSettings = {
     km: "ប្រព័ន្ធកាត់អត្រាសងលេខដែលមានការចាក់ច្រើនដោយស្វ័យប្រវត្តិ។ អ្នកឃើញអត្រាចុងក្រោយមុនពេលបញ្ជាក់ជានិច្ច។",
   },
   cancelWindowMin: 15,
+  cancelCutoffMin: 5,
   staffTotpRequired: false,
 };
