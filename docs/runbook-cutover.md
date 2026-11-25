@@ -443,6 +443,18 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 ---
 
+## แพ็กเกจราคาและค่าประจำงวด (member migration 12)
+
+เพิ่มตารางอย่างเดียว ไม่ลบข้อมูล
+
+1. `cd "$MEMBER_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- migrate`
+2. ให้สิทธิ์ใหม่จาก `scripts/grants.sql` (ตาราง `price_packages`, `package_rates`, `risk_profiles`, `lotto_bet_types`, `lotto_packages`, `lotto_rate_overrides`, `round_configs` ของทั้งสองผู้ใช้)
+3. deploy member แล้วจึง deploy admin
+
+**Verify:** member `npm run db -- status` ได้ schema version 12; ภายใน 5 นาที `SELECT COUNT(*) FROM round_configs` มากกว่า 0
+
+---
+
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
 1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน

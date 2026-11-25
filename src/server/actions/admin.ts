@@ -40,6 +40,7 @@ import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/se
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
 import { cancelRound, reconcileRounds, setResult, createRound } from "@/server/services/rounds";
+import { refreshRoundConfigs } from "@/server/services/round-configs";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
 import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
 import { InsufficientFundsError, move } from "@/server/services/wallet";
@@ -138,7 +139,9 @@ export async function createRoundAction(input: unknown): Promise<ActionResult> {
   const drawAt = v.draw ? parseBkkLocal(v.draw) : closesAt === null ? null : closesAt + lotto.resultDelayMin * 60_000;
   if (opensAt === null || closesAt === null || drawAt === null) return { ok: false, error: g.e.admin.roundCreate.badTime };
   const r = await createRound(v.lottoId, { opensAt, closesAt, drawAt }, g.viewer.id);
-  return r.ok ? done(g.e.admin.roundCreate.done) : { ok: false, error: g.e.admin.roundCreate[r.error] };
+  if (!r.ok) return { ok: false, error: g.e.admin.roundCreate[r.error] };
+  await refreshRoundConfigs();
+  return done(g.e.admin.roundCreate.done);
 }
 
 export async function setManualLimitAction(roundId: number, betType: string, number: string, limit: ManualLimit | null): Promise<ActionResult> {
@@ -218,6 +221,7 @@ export async function saveRiskSettingsAction(input: {
     await setSetting("limits", limits);
     await audit(g.viewer.id, "settings.risk", "global", { rates, risk, limits }, Date.now(), g.ip);
   });
+  await refreshRoundConfigs();
   return done(g.e.admin.ratesSaved);
 }
 
@@ -293,6 +297,7 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
   if (!before || switched || json.str(before.schedule) !== json.str(v.schedule) || before.resultDelayMin !== v.resultDelayMin) {
     await reconcileRounds(lottoId, g.viewer.id).catch((error) => console.error("[lottos] round reconcile failed:", error instanceof Error ? error.message : error));
   }
+  await refreshRoundConfigs();
   return done(fmt(g.e.admin.lottoSaved, { name: v.shortName }));
 }
 
@@ -317,6 +322,7 @@ export async function createLottoAction(input: unknown): Promise<ActionResult> {
   const id = await createLotto({ ...v, schedule: v.schedule as Schedule });
   if (id === null) return { ok: false, error: g.e.admin.lottoSlugTaken };
   await audit(g.viewer.id, "lotto.create", `lotto:${id}`, v, Date.now(), g.ip);
+  await refreshRoundConfigs();
   return done(fmt(g.e.admin.lottoCreated, { name: v.shortName }));
 }
 

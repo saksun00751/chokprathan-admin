@@ -5,11 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 const jobs = vi.hoisted(() => {
   const fail = () => vi.fn(async () => { throw new Error("boom"); });
   const ok = () => vi.fn(async () => {});
-  return { ensureRounds: fail(), autoResults: fail(), resumeSettlements: fail(), expireDeposits: ok(), sealAudit: ok(), run: ok() };
+  return { ensureRounds: fail(), autoResults: fail(), resumeSettlements: fail(), expireDeposits: ok(), sealAudit: ok(), refreshRoundConfigs: ok(), run: ok() };
 });
 
 vi.mock("@/server/db", () => ({ run: jobs.run, outsideTx: (f: () => void) => f(), withLock: async (_n: string, f: () => Promise<void>) => (await f(), { ran: true }) }));
 vi.mock("./rounds", () => ({ ensureRounds: jobs.ensureRounds, autoResults: jobs.autoResults, resumeSettlements: jobs.resumeSettlements }));
+vi.mock("./round-configs", () => ({ refreshRoundConfigs: jobs.refreshRoundConfigs }));
 vi.mock("./finance", () => ({ expireDeposits: jobs.expireDeposits }));
 vi.mock("./employee-auth", () => ({ pruneEmployeeSessions: vi.fn(async () => {}) }));
 vi.mock("./ratelimit", () => ({ pruneRateLimits: vi.fn(async () => {}) }));
@@ -27,6 +28,7 @@ describe("scheduler tick", () => {
     expect(jobs.resumeSettlements).toHaveBeenCalled();
     expect(jobs.expireDeposits).toHaveBeenCalled();
     expect(jobs.sealAudit).toHaveBeenCalled();
+    expect(jobs.refreshRoundConfigs).toHaveBeenCalled();
     expect(jobs.run).toHaveBeenCalled();
   });
 });

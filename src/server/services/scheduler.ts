@@ -5,6 +5,7 @@ import { pruneEmployeeSessions } from "./employee-auth";
 import { expireDeposits } from "./finance";
 import { pruneRateLimits } from "./ratelimit";
 import { autoResults, ensureRounds, resumeSettlements } from "./rounds";
+import { refreshRoundConfigs } from "./round-configs";
 import { settlePendingGuesses } from "./activities";
 import { rollupStats } from "@/server/stats/rollup";
 import { sealAudit, verifyAudit } from "./audit";
@@ -62,6 +63,7 @@ export async function tick(now = Date.now()) {
           await ensureRounds(now);
           state.lastEnsure = now;
         });
+        await job("round configs", () => refreshRoundConfigs(now));
       }
       await job("auto results", () => autoResults(now));
       await job("settlement", () => resumeSettlements(now));
