@@ -105,7 +105,7 @@ export const ops: typeof th = {
   },
   risk: {
     title: "Payout rates and automatic cut thresholds",
-    description: "Set how the site handles heavy betting on the same number in the same draw: the total at which the payout rate goes down, and the total at which the number stops taking bets. These are the defaults for every lottery; per-lottery settings are on the Lotteries page. Once saved, they apply to bills sent from then on. Earlier bills keep their rates.",
+    description: "Set how the site handles heavy betting on the same number in the same draw: the total at which the payout rate goes down, and the total at which the number stops taking bets. These are the defaults for every lottery; per-lottery settings are on the Lotteries page. Applies to draws with no bills yet; draws that already have bills keep their old settings until they finish.",
     saved: "Saved",
     billLimits: "Bill limits",
     minStake: "Minimum stake per number (baht)",

@@ -162,7 +162,7 @@ export const shell: typeof th = {
     cancelRoundNote: "Every bill in this draw is refunded. This cannot be undone.",
     setLimit: "Save this number limit?",
     saveRisk: "Save payout rates and cut thresholds?",
-    saveRiskNote: "Applies to new bills at once; bills already placed keep their rates.",
+    saveRiskNote: "Applies to draws with no bills yet; draws that already have bills keep their old settings until they finish.",
     saveLotto: "Save this lottery's settings?",
     createStaff: "Add this staff member?",
     updateStaff: "Save changes to this staff member?",

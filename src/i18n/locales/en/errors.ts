@@ -292,7 +292,7 @@ export const errors: typeof th = {
     badRate: "Invalid payout rate for {code}",
     badTier: "Invalid thresholds for {code}",
     badLimits: "Invalid betting limits",
-    ratesSaved: "Payout rates and cut thresholds saved. They apply to new bills right away.",
+    ratesSaved: "Payout rates and cut thresholds saved. Applies to draws with no bills yet; draws that already have bills keep their old settings until they finish.",
     lottoNotFound: "Lottery not found",
     lottoSaved: "{name} saved",
     memberNotFound: "Member not found",
