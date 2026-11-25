@@ -64,6 +64,15 @@ GRANT SELECT, UPDATE ON lotto.point_guesses TO 'chok_admin'@'%';
 -- Lottery groups: staff create, rename, reorder and delete empty ones.
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.lotto_groups TO 'chok_admin'@'%';
 
+-- Price packages, bet types, risk profiles and the per-round copy of them.
+GRANT SELECT, INSERT ON lotto.price_packages TO 'chok_admin'@'%';
+GRANT SELECT, INSERT ON lotto.lotto_packages TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.package_rates TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.risk_profiles TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.lotto_bet_types TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, UPDATE ON lotto.round_configs TO 'chok_admin'@'%';
+GRANT SELECT, INSERT, DELETE ON lotto.lotto_rate_overrides TO 'chok_admin'@'%';
+
 -- Created and edited by admin (soft-deleted or archived, never DELETEd).
 GRANT SELECT, INSERT, UPDATE ON lotto.lottos TO 'chok_admin'@'%';
 GRANT SELECT, INSERT, UPDATE ON lotto.rounds TO 'chok_admin'@'%';
@@ -146,6 +155,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.games TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.login_attempts TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.login_challenges TO 'chok_member'@'%';
 GRANT SELECT ON lotto.lotto_groups TO 'chok_member'@'%';
+GRANT SELECT ON lotto.lotto_bet_types TO 'chok_member'@'%';
+GRANT SELECT ON lotto.lotto_packages TO 'chok_member'@'%';
+GRANT SELECT ON lotto.lotto_rate_overrides TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.lottos TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.manual_limits TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.media TO 'chok_member'@'%';
@@ -153,12 +165,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.member_points TO 'chok_member'@'%'
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.news TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.number_sets TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.otps TO 'chok_member'@'%';
+GRANT SELECT ON lotto.package_rates TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.point_guesses TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.point_moves TO 'chok_member'@'%';
+GRANT SELECT ON lotto.price_packages TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.promotion_claims TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.promotions TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.rate_limits TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.ref_clicks TO 'chok_member'@'%';
+GRANT SELECT ON lotto.risk_profiles TO 'chok_member'@'%';
+GRANT SELECT ON lotto.round_configs TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.rounds TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.schema_migrations TO 'chok_member'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON lotto.session_ends TO 'chok_member'@'%';
