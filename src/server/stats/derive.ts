@@ -116,16 +116,30 @@ export function sumBetTypes(days: DayStats[]): Record<string, BetTypeDay> {
   const out: Record<string, BetTypeDay> = {};
   for (const d of days) {
     for (const [type, b] of Object.entries(d.betTypes)) {
-      const a = (out[type] ??= { items: 0, won: 0, stake: 0, potential: 0, payout: 0, settled: 0 });
+      const a = (out[type] ??= { items: 0, won: 0, stake: 0, potential: 0, payout: 0, settled: 0, discount: 0, settledDiscount: 0 });
       a.items += b.items;
       a.won += b.won;
       a.stake += b.stake;
+      a.discount = (a.discount ?? 0) + (b.discount ?? 0);
+      a.settledDiscount = (a.settledDiscount ?? 0) + (b.settledDiscount ?? 0);
       a.potential += b.potential;
       a.payout += b.payout;
       a.settled += b.settled;
     }
   }
   return out;
+}
+
+/**
+ * A bet type's report figures in satang. Stakes are in baht before discount; money counts what was
+ * paid, while the average rate stays per baht bet.
+ */
+export function betTypeFigures(x: BetTypeDay): { turnover: number; ggr: number; avgRate: number | null } {
+  return {
+    turnover: x.stake * 100 - (x.discount ?? 0),
+    ggr: x.settled * 100 - (x.settledDiscount ?? 0) - x.payout,
+    avgRate: x.stake > 0 ? x.potential / x.stake / 100 : null,
+  };
 }
 
 /** Chart values per Bangkok hour (one-day ranges) or per day, every bucket present. */

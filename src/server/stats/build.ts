@@ -52,10 +52,11 @@ export async function buildSpan(from: number, to: number, now = Date.now()): Pro
          WHERE b.created_at >= ? AND b.created_at < ? AND b.status IN ${LIVE}`,
         ...span,
       ),
-      q<{ dk: number; bet_type: string; items: number; stake: number | null; potential: number | null; payout: number | null; settled: number | null; won: number | null }>(
+      q<{ dk: number; bet_type: string; items: number; stake: number | null; discount: number | null; settled_discount: number | null; potential: number | null; payout: number | null; settled: number | null; won: number | null }>(
         `SELECT ${DK("b.created_at")} AS dk, i.bet_type, COUNT(*) AS items, SUM(i.stake) AS stake, SUM(i.potential) AS potential, SUM(i.payout) AS payout,
                 SUM(CASE WHEN i.status IN ${SETTLED} THEN i.stake ELSE 0 END) AS settled,
-                SUM(CASE WHEN i.status = 'won' THEN 1 ELSE 0 END) AS won
+                SUM(CASE WHEN i.status = 'won' THEN 1 ELSE 0 END) AS won,
+                SUM(i.discount) AS discount, SUM(CASE WHEN i.status IN ${SETTLED} THEN i.discount ELSE 0 END) AS settled_discount
          FROM bill_items i JOIN bills b ON b.id = i.bill_id
          WHERE b.created_at >= ? AND b.created_at < ? AND i.status IN ${LIVE} GROUP BY dk, i.bet_type`,
         ...span,
@@ -133,7 +134,7 @@ export async function buildSpan(from: number, to: number, now = Date.now()): Pro
   }
   for (const r of betTypes) {
     const x = day(r.dk);
-    if (x) x.betTypes[r.bet_type] = { items: num(r.items), won: num(r.won), stake: num(r.stake), potential: num(r.potential), payout: num(r.payout), settled: num(r.settled) };
+    if (x) x.betTypes[r.bet_type] = { items: num(r.items), won: num(r.won), stake: num(r.stake), potential: num(r.potential), payout: num(r.payout), settled: num(r.settled), discount: num(r.discount), settledDiscount: num(r.settled_discount) };
   }
   for (const r of settledHours) {
     const { x, h } = slot(r.hk);

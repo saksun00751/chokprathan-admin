@@ -23,6 +23,9 @@ export interface BetTypeDay {
   potential: number;
   payout: number;
   settled: number;
+  /** satang taken off the stakes, and off the settled ones; absent on days stored before discounts */
+  discount?: number;
+  settledDiscount?: number;
 }
 
 export interface MoneyDay {

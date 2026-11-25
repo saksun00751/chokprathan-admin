@@ -7,7 +7,7 @@ import { groupName } from "@/domain/lotto-groups";
 import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
-import { sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx, AFFILIATE_TYPES, CASHBACK_TYPES, rewardsEarned } from "@/server/stats/derive";
+import { betTypeFigures, sumBetTypes, sumLottos, sumPlaced, sumSettled, sumTx, AFFILIATE_TYPES, CASHBACK_TYPES, rewardsEarned } from "@/server/stats/derive";
 import { rangeStats, roundStats, type RangeStats } from "@/server/stats/store";
 import { can, type Employee } from "@/server/services/employee-auth";
 import { listGroups } from "@/server/services/lotto-groups";
@@ -202,15 +202,18 @@ function byBetType(s: RangeStats, R: ReportsDict): ReportTable {
       { key: "payout", label: c.payout, kind: "baht", total: true },
       { key: "ggr", label: c.ggr, kind: "baht", total: true },
     ],
-    rows: rows.map(([type, x]) => ({
-      type: R.t.lotto.betTypes[type as BetTypeCode]?.label ?? type,
-      items: x.items,
-      won: x.won,
-      turnover: x.stake * 100,
-      avgRate: x.stake > 0 ? `×${(x.potential / x.stake / 100).toFixed(1)}` : "-",
-      payout: x.payout,
-      ggr: x.settled * 100 - x.payout,
-    })),
+    rows: rows.map(([type, x]) => {
+      const f = betTypeFigures(x);
+      return {
+        type: R.t.lotto.betTypes[type as BetTypeCode]?.label ?? type,
+        items: x.items,
+        won: x.won,
+        turnover: f.turnover,
+        avgRate: f.avgRate === null ? "-" : `×${f.avgRate.toFixed(1)}`,
+        payout: x.payout,
+        ggr: f.ggr,
+      };
+    }),
     note: R.bettypes.note,
   };
 }

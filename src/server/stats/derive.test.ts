@@ -64,7 +64,7 @@ describe("sums over days", () => {
   });
 
   test("bet types add up", () => {
-    expect(sumBetTypes([a, b])).toEqual({ top2: { items: 3, won: 1, stake: 30, potential: 2700, payout: 900, settled: 30 } });
+    expect(sumBetTypes([a, b])).toEqual({ top2: { items: 3, won: 1, stake: 30, potential: 2700, payout: 900, settled: 30, discount: 0, settledDiscount: 0 } });
   });
 
   test("one day gives 24 hourly buckets, longer ranges one bucket per day, all zero-filled", () => {
