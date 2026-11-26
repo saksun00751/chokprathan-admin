@@ -531,6 +531,10 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 **ก่อนสร้างแพ็กเกจแรก:** รายงานแยกประเภทแทงของวันเก่าใน MongoDB ไม่มีช่องส่วนลด (นับเป็น 0 ซึ่งถูกต้อง เพราะยังไม่เคยมีส่วนลด)
 
+**ก่อน `npm ci` บนเซิร์ฟเวอร์ (ทั้งสองแอป):** `package-lock.json` ดึง `chokprathan-core` ผ่าน
+`git+ssh://git@github.com/saksun00751/chokprathan-core.git` เครื่องต้องมี `git` และ deploy key แบบอ่านอย่างเดียวของ repo นั้น
+ตรวจด้วย `git ls-remote git@github.com:saksun00751/chokprathan-core.git`
+
 **หน้าจอสมาชิก (`chokprathan-core` v0.5.1):** ไม่มี migration ใหม่ ทั้งสองแอปต้องอ้าง v0.5.1 และ deploy member ก่อนหรือพร้อมการสร้างแพ็กเกจแรก
 เพราะ member รุ่นก่อนหน้าเลือกแพ็กเกจไม่ได้
 
