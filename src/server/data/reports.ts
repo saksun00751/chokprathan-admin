@@ -4,6 +4,7 @@ import { maskPhone } from "@/domain/banks";
 import { BET_TYPE_ORDER } from "chokprathan-core/rules/betTypes";
 import { bucketsOf, resolveRange, type DateRange } from "@/domain/periods";
 import { groupName } from "@/domain/lotto-groups";
+import { reportRoundStatus } from "@/domain/report-status";
 import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
 import { json, q } from "@/server/db";
 import { staffSignInCounts } from "@/server/logs";
@@ -156,7 +157,6 @@ async function byRound(r: DateRange, R: ReportsDict): Promise<ReportTable> {
   const c = R.rounds.cols;
   const [lottos, all] = await Promise.all([listLottos({ includeDisabled: true }), roundStats(r)]);
   const rows = all.filter((x) => x.bills > 0).sort((a, b) => b.closesAt - a.closesAt || b._id - a._id);
-  const STATUS: Record<string, string> = { scheduled: R.t.lotto.phase.closed, resulted: R.t.lotto.phase.resulted, cancelled: R.t.lotto.phase.cancelled };
   return {
     columns: [
       { key: "closes", label: c.closes, kind: "datetime" },
