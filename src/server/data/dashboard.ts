@@ -3,7 +3,7 @@ import { io } from "next/cache";
 import { SELF_DRAWN_SQL } from "@/domain/auto-result";
 import { maskPhone } from "@/domain/banks";
 import { previousRange, resolveRange, type DateRange } from "@/domain/periods";
-import { BKK_OFFSET_MS } from "chokprathan-core/rules/time";
+import { BKK_OFFSET_MS } from "@/core/rules/time";
 import { groupName } from "@/domain/lotto-groups";
 import { q, q1 } from "@/server/db";
 import { can } from "@/server/services/employee-auth";

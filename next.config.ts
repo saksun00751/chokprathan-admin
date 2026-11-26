@@ -46,8 +46,6 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   reactCompiler: true,
   poweredByHeader: false,
-  // Shared rules ship as TypeScript source.
-  transpilePackages: ["chokprathan-core"],
   // A self-contained server bundle for PM2 (see README "Deploy").
   output: "standalone",
   experimental: {

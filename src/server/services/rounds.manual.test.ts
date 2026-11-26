@@ -1,7 +1,7 @@
 // src/server/services/rounds.manual.test.ts
 // Manual rounds and the per-lottery auto-create switch, against a stubbed database (nothing real is touched).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { bkkMs } from "chokprathan-core/rules/time";
+import { bkkMs } from "@/core/rules/time";
 
 const db = vi.hoisted(() => ({
   q: vi.fn<(sql: string, ...p: unknown[]) => Promise<unknown[]>>(async () => []),

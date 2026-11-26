@@ -1,4 +1,4 @@
-import { MINUTE } from "chokprathan-core/rules/time";
+import { MINUTE } from "@/core/rules/time";
 import { dayOf, dayStartOf, emptyDay } from "./derive";
 import type { BuiltSpan, DayStats } from "./types";
 

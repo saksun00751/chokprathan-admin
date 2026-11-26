@@ -1,4 +1,4 @@
-import type { LottoGroup } from "chokprathan-core/rules/types";
+import type { LottoGroup } from "@/core/rules/types";
 
 /**
  * Only house-run games may draw themselves. Every other lottery has an official result that staff

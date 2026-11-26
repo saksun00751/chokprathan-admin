@@ -3,7 +3,7 @@
 import { useI18n } from "@/i18n/client";
 import { fmt } from "@/i18n/format";
 import { useEffect, useSyncExternalStore } from "react";
-import { formatClock, splitCountdown } from "chokprathan-core/rules/time";
+import { formatClock, splitCountdown } from "@/core/rules/time";
 import { cn } from "@/lib/cn";
 
 /**

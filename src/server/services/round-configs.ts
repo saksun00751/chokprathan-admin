@@ -1,6 +1,6 @@
 import "server-only";
-import { buildRoundConfig, type RoundConfig, type RoundConfigInput } from "chokprathan-core/rules/roundConfig";
-import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
+import { buildRoundConfig, type RoundConfig, type RoundConfigInput } from "@/core/rules/roundConfig";
+import type { BetTypeCode, RiskProfile } from "@/core/rules/types";
 import { json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
 import { mirrorLegacyConfig } from "./config-mirror";

@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { PeriodFilter } from "@/components/admin/period-filter";
 import { Table, Td, Th } from "@/components/admin/ui";
 import { PageHeader, Skeleton } from "@/components/ui/primitives";
-import { formatBaht } from "chokprathan-core/rules/money";
+import { formatBaht } from "@/core/rules/money";
 import { rangeLabel } from "@/domain/periods";
 import type { Locale } from "@/i18n/config";
 import { fmt, formatDate, formatDateTime, formatNumber } from "@/i18n/format";

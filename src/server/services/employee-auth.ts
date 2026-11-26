@@ -6,7 +6,7 @@ import { errorsT } from "@/i18n/server";
 import type { Dict } from "@/i18n/dictionaries";
 import { hasPermission, type Permission } from "@/domain/permissions";
 import { endedParam, type SessionEnd } from "@/domain/sessions";
-import { DAY, HOUR, MINUTE } from "chokprathan-core/rules/time";
+import { DAY, HOUR, MINUTE } from "@/core/rules/time";
 import { json, q, q1, run, tx } from "@/server/db";
 import { matchTotp } from "@/server/totp";
 

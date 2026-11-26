@@ -1,8 +1,8 @@
 import "server-only";
-import { outstandingDebt } from "chokprathan-core/wallet/debt";
+import { outstandingDebt } from "@/core/wallet/debt";
 import { fmt } from "@/i18n/format";
 import { errorsT } from "@/i18n/server";
-import { formatBaht } from "chokprathan-core/rules/money";
+import { formatBaht } from "@/core/rules/money";
 import { json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
 import { bankMove, payoutAccounts } from "./banks";

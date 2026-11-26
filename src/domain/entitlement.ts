@@ -2,9 +2,9 @@
  * What a bill entitles whom to under a result, and how a change of entitlement is taken from or paid
  * into wallets. Pure, so the payout, the correction and its preview cannot disagree. Money is satang.
  */
-import { isWinning } from "chokprathan-core/rules/match";
-import type { BetTypeCode, RoundResult } from "chokprathan-core/rules/types";
-import type { WalletKind } from "chokprathan-core/wallet/debt";
+import { isWinning } from "@/core/rules/match";
+import type { BetTypeCode, RoundResult } from "@/core/rules/types";
+import type { WalletKind } from "@/core/wallet/debt";
 
 export interface Rewards {
   cashbackBp: number;

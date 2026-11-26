@@ -1,8 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { BET_TYPE_ORDER, isBetTypeCode } from "chokprathan-core/rules/betTypes";
-import { MAX_DISCOUNT_BP, type PackageRate } from "chokprathan-core/rules/roundConfig";
-import type { BetTypeCode } from "chokprathan-core/rules/types";
+import { BET_TYPE_ORDER, isBetTypeCode } from "@/core/rules/betTypes";
+import { MAX_DISCOUNT_BP, type PackageRate } from "@/core/rules/roundConfig";
+import type { BetTypeCode } from "@/core/rules/types";
 import { q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
 import { STANDARD_PACKAGE } from "./config-mirror";

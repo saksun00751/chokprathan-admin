@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatBaht } from "chokprathan-core/rules/money";
+import { formatBaht } from "@/core/rules/money";
 import { useConfirm } from "@/components/admin/confirm";
 import { Button } from "@/components/ui/button";
 import { Card, Money } from "@/components/ui/primitives";

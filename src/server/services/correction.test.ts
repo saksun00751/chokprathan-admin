@@ -4,7 +4,7 @@ import { invalidate } from "@/server/cache";
 import { json, q, q1, run } from "@/server/db";
 import { changedDays } from "@/server/stats/build";
 import { dayOf } from "@/server/stats/derive";
-import { DAY } from "chokprathan-core/rules/time";
+import { DAY } from "@/core/rules/time";
 import { hasTestDb, resetDb } from "@/test/db";
 import { checkResult } from "./results";
 import { applyCorrection, checkCorrection, confirmCorrection, rejectCorrection, requestCorrection } from "./correction";

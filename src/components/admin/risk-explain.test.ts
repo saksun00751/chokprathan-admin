@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { priceStake } from "chokprathan-core/rules/pricing";
-import type { RiskProfile } from "chokprathan-core/rules/types";
+import { priceStake } from "@/core/rules/pricing";
+import type { RiskProfile } from "@/core/rules/types";
 import { defaultsSummary, equalsDefaults, exampleTotal, explainProfile, percentRate100, sampleNumber } from "./risk-explain";
 
 const TOP2: RiskProfile = { enabled: true, tiers: [{ threshold: 5000, percent: 75 }, { threshold: 15000, percent: 50 }], cap: 30000 };

@@ -1,4 +1,4 @@
-import { bkkMs, bkkParts, DAY } from "chokprathan-core/rules/time";
+import { bkkMs, bkkParts, DAY } from "@/core/rules/time";
 
 /** A `<input type="datetime-local">` value, read as Asia/Bangkok. Null unless it is a real date and time. */
 export function parseBkkLocal(value: string): number | null {

@@ -1,5 +1,5 @@
 import "server-only";
-import { collectDebt } from "chokprathan-core/wallet/debt";
+import { collectDebt } from "@/core/wallet/debt";
 import { q, q1, run, tx } from "@/server/db";
 
 export type WalletKind = "balance" | "cashback" | "affiliate";
@@ -9,7 +9,7 @@ export type TxType =
   | "bonus"
   | "withdraw"
   | "withdraw_refund"
-  /** taken from money coming in to repay a debt (written by chokprathan-core) */
+  /** taken from money coming in to repay a debt (written by core/wallet/debt) */
   | "debt_repay"
   /** differences paid or taken back when a result is corrected */
   | "win_correction"

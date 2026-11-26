@@ -1,5 +1,5 @@
 import "server-only";
-import { DAY, MINUTE } from "chokprathan-core/rules/time";
+import { DAY, MINUTE } from "@/core/rules/time";
 import { q } from "@/server/db";
 import { COLL, mongoDb } from "@/server/mongo";
 import { buildRounds, buildSpan, changedDays, firstDay, roundsFinishedSince } from "./build";

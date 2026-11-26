@@ -1,4 +1,4 @@
-import type { Schedule } from "chokprathan-core/rules/types";
+import type { Schedule } from "@/core/rules/types";
 
 /** Country flags both apps can draw (components/ui/flag). A lottery with none shows the Thai flag. */
 export const FLAG_CODES = ["TH", "LA", "VN", "MY", "SG", "JP", "CN", "HK", "TW", "KR", "IN", "EG", "RU", "DE", "GB", "US"] as const;

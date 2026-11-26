@@ -1,5 +1,5 @@
 import { bucketsOf, type DateRange } from "@/domain/periods";
-import { BKK_OFFSET_MS, DAY, MINUTE } from "chokprathan-core/rules/time";
+import { BKK_OFFSET_MS, DAY, MINUTE } from "@/core/rules/time";
 import type { BetTypeDay, DayStats, UserTotals } from "./types";
 
 /** Pure arithmetic over summary documents. Nothing here touches a database. */

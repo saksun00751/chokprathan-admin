@@ -1,6 +1,6 @@
 "use client";
 
-import type { ResultFormat } from "chokprathan-core/rules/types";
+import type { ResultFormat } from "@/core/rules/types";
 import type { ResultValues } from "@/components/admin/result-summary";
 import { useI18n } from "@/i18n/client";
 

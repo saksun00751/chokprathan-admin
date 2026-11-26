@@ -8,7 +8,7 @@ import { ResultDigits } from "@/components/lotto/result-digits";
 import { Countdown, ServerTimeSync } from "@/components/ui/clock";
 import { Flag } from "@/components/ui/flag";
 import { Badge, Card, Money, PageHeader, SectionTitle, Skeleton } from "@/components/ui/primitives";
-import { isBetTypeCode } from "chokprathan-core/rules/betTypes";
+import { isBetTypeCode } from "@/core/rules/betTypes";
 import { fmt, formatDateTime, formatNumber } from "@/i18n/format";
 import { getI18n, titled } from "@/i18n/rsc";
 import { getAdminRound } from "@/server/data/admin";

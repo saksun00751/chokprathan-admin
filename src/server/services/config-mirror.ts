@@ -1,6 +1,6 @@
 import "server-only";
-import { BET_TYPE_ORDER, betTypesFor } from "chokprathan-core/rules/betTypes";
-import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
+import { BET_TYPE_ORDER, betTypesFor } from "@/core/rules/betTypes";
+import type { BetTypeCode, RiskProfile } from "@/core/rules/types";
 import { json, q1, run, tx } from "@/server/db";
 import { freshSettings } from "./fresh-settings";
 import { listLottos } from "./lottos";

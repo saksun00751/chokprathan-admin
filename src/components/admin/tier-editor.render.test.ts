@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import type { RiskProfile } from "chokprathan-core/rules/types";
+import type { RiskProfile } from "@/core/rules/types";
 import { I18nProvider } from "@/i18n/client";
 import th from "@/i18n/locales/th";
 import { TierEditor } from "./tier-editor";

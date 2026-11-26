@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseBkkLocal, roundTimesProblem } from "./round-input";
-import { bkkMs } from "chokprathan-core/rules/time";
+import { bkkMs } from "@/core/rules/time";
 
 describe("parseBkkLocal", () => {
   it("reads a datetime-local value as Bangkok time", () => {

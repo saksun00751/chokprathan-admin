@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { bkkMs } from "chokprathan-core/rules/time";
+import { bkkMs } from "@/core/rules/time";
 import { bucketsOf, previousRange, resolveRange } from "./periods";
 
 const now = bkkMs(2026, 11, 4, 12, 30);

@@ -1,8 +1,8 @@
 import "server-only";
-import { marginalRate100 } from "chokprathan-core/rules/pricing";
-import { betRules } from "chokprathan-core/rules/quote";
-import type { RoundConfig } from "chokprathan-core/rules/roundConfig";
-import type { BetTypeCode, ManualLimit } from "chokprathan-core/rules/types";
+import { marginalRate100 } from "@/core/rules/pricing";
+import { betRules } from "@/core/rules/quote";
+import type { RoundConfig } from "@/core/rules/roundConfig";
+import type { BetTypeCode, ManualLimit } from "@/core/rules/types";
 import { invalidate, memo } from "@/server/cache";
 import { afterCommit, q, q1, run, tolerateMissingTable } from "@/server/db";
 import { audit } from "./audit";

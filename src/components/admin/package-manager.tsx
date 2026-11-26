@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { BET_TYPE_ORDER, betTypesFor } from "chokprathan-core/rules/betTypes";
-import { formatRate } from "chokprathan-core/rules/money";
-import type { BetTypeCode, ResultFormat } from "chokprathan-core/rules/types";
+import { BET_TYPE_ORDER, betTypesFor } from "@/core/rules/betTypes";
+import { formatRate } from "@/core/rules/money";
+import type { BetTypeCode, ResultFormat } from "@/core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, SectionTitle } from "@/components/ui/primitives";

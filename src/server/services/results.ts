@@ -1,6 +1,6 @@
 import "server-only";
-import { deriveResult, isWinning, type ResultInput } from "chokprathan-core/rules/match";
-import type { BetTypeCode, ResultFormat, RoundResult } from "chokprathan-core/rules/types";
+import { deriveResult, isWinning, type ResultInput } from "@/core/rules/match";
+import type { BetTypeCode, ResultFormat, RoundResult } from "@/core/rules/types";
 import { errorsT, serverI18n } from "@/i18n/server";
 import { json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";

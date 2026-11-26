@@ -1,7 +1,7 @@
 import "server-only";
 import type { Db } from "mongodb";
 import type { DateRange } from "@/domain/periods";
-import { MINUTE } from "chokprathan-core/rules/time";
+import { MINUTE } from "@/core/rules/time";
 import { COLL, mongoDb } from "@/server/mongo";
 import { buildRounds, buildSpan, finishedRoundIds, unfinishedRounds } from "./build";
 import { dayOf, daysIn, emptyDay, groupUsers } from "./derive";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MINUTE } from "chokprathan-core/rules/time";
+import { MINUTE } from "@/core/rules/time";
 import { dayOf, dayStartOf, emptyDay } from "./derive";
 import { loadDays, type LoadDeps } from "./load";
 import type { BuiltSpan, DayStats } from "./types";

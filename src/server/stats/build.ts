@@ -1,6 +1,6 @@
 import "server-only";
 import type { DateRange } from "@/domain/periods";
-import { BKK_OFFSET_MS, DAY, HOUR } from "chokprathan-core/rules/time";
+import { BKK_OFFSET_MS, DAY, HOUR } from "@/core/rules/time";
 import { q, q1 } from "@/server/db";
 import { dayOf, dayStartOf, emptyDay } from "./derive";
 import type { BuiltSpan, DayStats, RoundStats, UserDay } from "./types";

@@ -1,7 +1,7 @@
 import "server-only";
-import { deriveResult, type ResultInput } from "chokprathan-core/rules/match";
-import type { RoundResult } from "chokprathan-core/rules/types";
-import { collectDebt } from "chokprathan-core/wallet/debt";
+import { deriveResult, type ResultInput } from "@/core/rules/match";
+import type { RoundResult } from "@/core/rules/types";
+import { collectDebt } from "@/core/wallet/debt";
 import { entitled, settleLines, type EntitledItem, type Line, type Rewards, type Wallets } from "@/domain/entitlement";
 import { errorsT, serverI18n } from "@/i18n/server";
 import { invalidate } from "@/server/cache";

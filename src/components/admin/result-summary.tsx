@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ResultInput } from "chokprathan-core/rules/match";
-import type { ResultFormat } from "chokprathan-core/rules/types";
+import type { ResultInput } from "@/core/rules/match";
+import type { ResultFormat } from "@/core/rules/types";
 
 /** What a result form holds while staff type: one string per box. */
 export type ResultValues = { top3: string; bottom2: string; top4: string; first6: string; f1: string; f2: string; b1: string; b2: string };

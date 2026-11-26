@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { bkkMs } from "chokprathan-core/rules/time";
+import { bkkMs } from "@/core/rules/time";
 import { toRound, roundLabel, type RoundRow } from "@/server/services/rounds";
 import { formatDate } from "./format";
 import { roundName, scheduledClose } from "./labels";

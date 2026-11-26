@@ -1,6 +1,6 @@
-import { DEFAULT_ADJUST_LIMITS } from "chokprathan-core/rules/adjust";
-import { BET_TYPES, BET_TYPE_ORDER } from "chokprathan-core/rules/betTypes";
-import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "chokprathan-core/rules/types";
+import { DEFAULT_ADJUST_LIMITS } from "@/core/rules/adjust";
+import { BET_TYPES, BET_TYPE_ORDER } from "@/core/rules/betTypes";
+import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "@/core/rules/types";
 
 /** Seed catalog (spec §2). Editable later in /lottos. */
 export interface CatalogEntry {
@@ -110,7 +110,7 @@ export interface WalletSettings {
   depositWindowMin: number;
   /** Before bank_accounts (migration 3) receiving accounts lived here; kept only so old settings still parse. */
   receivingAccounts: { bank: string; account: string; name: string }[];
-  /** Size limits of one staff balance adjustment, in satang (see chokprathan-core rules/adjust). */
+  /** Size limits of one staff balance adjustment, in satang (see core/rules/adjust). */
   adjustMin: number;
   adjustMax: number;
 }

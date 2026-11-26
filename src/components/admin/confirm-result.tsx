@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { formatBaht } from "chokprathan-core/rules/money";
-import type { ResultFormat } from "chokprathan-core/rules/types";
+import { formatBaht } from "@/core/rules/money";
+import type { ResultFormat } from "@/core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
 import { ResultBoxes } from "@/components/admin/result-boxes";
 import { Digits, EMPTY_RESULT, resultComplete, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";

@@ -54,8 +54,8 @@ const record = (table, verb, file) => {
   verbs.get(verb).add(relative(root, file));
 };
 
-// The shared package runs SQL on the app's connection too.
-for (const file of [...files(join(root, "src")), ...files(join(root, "node_modules/chokprathan-core/src"))]) {
+// src/core (the shared rules) is included: it runs SQL on the app's connection too.
+for (const file of files(join(root, "src"))) {
   const raw = readFileSync(file, "utf8");
   const lines = raw.split("\n");
   const code = lines.filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l)).join("\n");

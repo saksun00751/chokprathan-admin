@@ -53,7 +53,7 @@ password=MIGRATE_PASS
 2. [ ] **(b) `grants.sql` ใช้ได้หลัง migration ของ member รันครบแล้วเท่านั้น** (GRANT ระดับตารางที่ไม่มี CREATE ต้องให้ตารางมีอยู่ก่อน)
    ลำดับในขั้น 2 จึงเป็น: member migrate → admin migrate → import-staff → grants
 3. [ ] **(c) merge branch `admin-split/prep` ของ member** เข้า main ของ member
-   ทั้งสองแอปต้องอ้าง `chokprathan-core` tag เดียวกัน (`grep chokprathan-core package.json` ทั้งสอง repo)
+   `src/core` ของทั้งสองแอปต้องเหมือนกัน (`diff -r "$ADMIN_DIR/src/core" "$MEMBER_DIR/src/core"` ต้องไม่มีผลลัพธ์)
 4. [ ] **(d) งานตรวจ cache TTL (plan Task 17, ไฟล์ `docs/cache-ttl-audit.md` ใน member branch)** merge และ deploy ฝั่ง member
    **ก่อน** Switch: ค่าที่ admin แก้ (settings, blocklist, lottos/สถานะรอบ, banners) ต้องถึงหน้า member ภายใน TTL ≤ 5 วินาที
    เพราะ cache ของ member invalidate ได้เฉพาะใน process ของตัวเอง
@@ -87,7 +87,7 @@ password=MIGRATE_PASS
     และ **rollback (ขั้น 5) เป็นไปไม่ได้อีก** (เหลือแค่กู้จาก backup) ผู้ใช้สิทธิ์สูงของ `MIGRATE_URL` เก็บแยกไว้ ใช้เฉพาะคำสั่ง
     `npm run db -- migrate` ที่สั่งเองเท่านั้น ห้ามอยู่ใน env ของ member app ที่รันด้วย auto-migrate
 
-**Verify:** ทุกช่องด้านบนติ๊กแล้ว, ทั้งสองแอปอ้าง `chokprathan-core` tag เดียวกัน, และ `node scripts/check-grants.mjs --member "$MEMBER_DIR"` พิมพ์ `grants ok`;
+**Verify:** ทุกช่องด้านบนติ๊กแล้ว, `src/core` ของทั้งสองแอปเหมือนกัน, และ `node scripts/check-grants.mjs --member "$MEMBER_DIR"` พิมพ์ `grants ok`;
 `git -C "$MEMBER_DIR" rev-parse admin-split-switch` ได้ commit (tag มีอยู่ในเครื่อง member)
 
 ---
@@ -531,11 +531,7 @@ cd "$ADMIN_DIR" && DATABASE_URL="$MIGRATE_URL" npm run db -- import-staff
 
 **ก่อนสร้างแพ็กเกจแรก:** รายงานแยกประเภทแทงของวันเก่าใน MongoDB ไม่มีช่องส่วนลด (นับเป็น 0 ซึ่งถูกต้อง เพราะยังไม่เคยมีส่วนลด)
 
-**ก่อน `npm ci` บนเซิร์ฟเวอร์ (ทั้งสองแอป):** `package-lock.json` ดึง `chokprathan-core` ผ่าน
-`git+ssh://git@github.com/saksun00751/chokprathan-core.git` เครื่องต้องมี `git` และ deploy key แบบอ่านอย่างเดียวของ repo นั้น
-ตรวจด้วย `git ls-remote git@github.com:saksun00751/chokprathan-core.git`
-
-**หน้าจอสมาชิก (`chokprathan-core` v0.5.1):** ไม่มี migration ใหม่ ทั้งสองแอปต้องอ้าง v0.5.1 และ deploy member ก่อนหรือพร้อมการสร้างแพ็กเกจแรก
+**หน้าจอสมาชิก:** ไม่มี migration ใหม่ deploy member ก่อนหรือพร้อมการสร้างแพ็กเกจแรก
 เพราะ member รุ่นก่อนหน้าเลือกแพ็กเกจไม่ได้
 
 **การใช้งาน**
@@ -560,8 +556,9 @@ TEST_DATABASE_URL='mysql://USER:PASSWORD@127.0.0.1:PORT/NAME_test' ALLOW_DB_RESE
 
 ## 7. ข้อจำกัดที่รู้อยู่และกฎที่ต้องรักษาต่อไป
 
-1. **กติการ่วม:** logic เงินและหวยอยู่ใน `chokprathan-core` ที่เดียว สองแอปต้องอ้าง tag เดียวกัน
-   การเปลี่ยนพฤติกรรมให้แก้ที่ repo นั้น ออก tag ใหม่ แล้วอัปเดตทั้งสองแอป
+1. **กติการ่วม:** logic เงินและหวยอยู่ใน `src/core` ของทั้งสองแอปและต้องเหมือนกันทุกไฟล์
+   แก้ทั้งสอง repo ในงานเดียวกัน เทส `src/core/parity.test.ts` จะล้มถ้าไม่ตรงกัน (ข้ามเมื่อไม่มีอีก repo อยู่ข้างกัน เช่นบนเซิร์ฟเวอร์)
+   repo `chokprathan-core` ไม่ใช้แล้ว
 2. **ข้อมูลพนักงานแก้ที่ admin เท่านั้นหลัง Switch** (พนักงาน, ตำแหน่ง, session, audit log) member ไม่เขียนตารางเหล่านี้อีก
    และ `chok_member` ไม่มีสิทธิ์
 3. **Cache TTL:** ค่าที่ admin แก้ (settings, blocklist, lottos, banners, theme) ถึงหน้า member หลังหมด TTL ของ cache ฝั่ง member

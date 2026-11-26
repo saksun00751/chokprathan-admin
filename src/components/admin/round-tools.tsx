@@ -3,8 +3,8 @@
 import { useI18n } from "@/i18n/client";
 import { fmt, formatNumber } from "@/i18n/format";
 import { useMemo, useState, useTransition, type ReactNode } from "react";
-import { formatBaht, formatRate } from "chokprathan-core/rules/money";
-import type { BetTypeCode, ManualLimit, ResultFormat } from "chokprathan-core/rules/types";
+import { formatBaht, formatRate } from "@/core/rules/money";
+import type { BetTypeCode, ManualLimit, ResultFormat } from "@/core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
 import { Digits, EMPTY_RESULT, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
 import { Button } from "@/components/ui/button";
