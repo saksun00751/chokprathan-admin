@@ -155,28 +155,28 @@ export async function requestCorrectionAction(roundId: number, change: { kind: "
 
 export type CorrectionCheck = { match: true; preview: CorrectionPreview } | { match: false; fields: ResultField[] };
 
-export async function checkCorrectionAction(roundId: number, input: ResultInput | null): Promise<ActionResult<CorrectionCheck>> {
+export async function checkCorrectionAction(roundId: number, requestId: number, input: ResultInput | null): Promise<ActionResult<CorrectionCheck>> {
   const g = await gate("rounds.correct");
   if ("refusal" in g) return g.refusal;
-  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await checkCorrection(roundId, input, g.viewer.id);
+  if (!isId(roundId) || !isId(requestId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await checkCorrection(roundId, requestId, input, g.viewer.id);
   if (r.ok) return { ok: true, data: { match: true, preview: r.preview } };
   return r.reason === "mismatch" ? { ok: true, data: { match: false, fields: r.fields } } : { ok: false, error: r.error };
 }
 
-export async function confirmCorrectionAction(roundId: number, input: ResultInput | null): Promise<ActionResult> {
+export async function confirmCorrectionAction(roundId: number, requestId: number, input: ResultInput | null): Promise<ActionResult> {
   const g = await gate("rounds.correct");
   if ("refusal" in g) return g.refusal;
-  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await confirmCorrection(roundId, input, g.viewer.id);
+  if (!isId(roundId) || !isId(requestId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await confirmCorrection(roundId, requestId, input, g.viewer.id);
   return r.ok ? done(g.e.admin.correctionDone) : { ok: false, error: r.error };
 }
 
-export async function rejectCorrectionAction(roundId: number): Promise<ActionResult> {
+export async function rejectCorrectionAction(roundId: number, requestId: number): Promise<ActionResult> {
   const g = await gate("rounds.correct");
   if ("refusal" in g) return g.refusal;
-  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await rejectCorrection(roundId, g.viewer.id);
+  if (!isId(roundId) || !isId(requestId)) return { ok: false, error: g.e.rounds.notFound };
+  const r = await rejectCorrection(roundId, requestId, g.viewer.id);
   return r.ok ? done(g.e.admin.correctionRejected) : { ok: false, error: r.error };
 }
 

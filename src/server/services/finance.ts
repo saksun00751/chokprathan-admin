@@ -187,14 +187,16 @@ export async function approveWithdrawal(
     if (!w || w.status !== "pending") return { ok: false as const, error: e.wallet.alreadyProcessed };
     // The member's row lock keeps a debt from appearing between this check and the approval.
     await q1("SELECT id FROM users WHERE id = ? FOR UPDATE", w.user_id);
-    const correcting = await q1(
-      `SELECT s.id FROM settlement_runs s JOIN bills b ON b.round_id = s.round_id
-       WHERE s.kind IN ('correction','void') AND s.status <> 'done' AND (b.user_id = ? OR b.aff1_user = ? OR b.aff2_user = ?) LIMIT 1`,
+    // A mismatched run is listed first: it waits for staff, not for time.
+    const correcting = await q1<{ status: "running" | "mismatch" }>(
+      `SELECT s.status FROM settlement_runs s JOIN bills b ON b.round_id = s.round_id
+       WHERE s.kind IN ('correction','void') AND s.status <> 'done' AND (b.user_id = ? OR b.aff1_user = ? OR b.aff2_user = ?)
+       ORDER BY s.status = 'mismatch' DESC LIMIT 1`,
       w.user_id,
       w.user_id,
       w.user_id,
     );
-    if (correcting) return { ok: false as const, error: e.wallet.correctionRunning };
+    if (correcting) return { ok: false as const, error: correcting.status === "mismatch" ? e.wallet.correctionMismatch : e.wallet.correctionRunning };
     const owed = await outstandingDebt({ q, q1, run }, w.user_id);
     if (owed > 0) return { ok: false as const, error: fmt(e.wallet.debtBlocks, { amount: formatBaht(owed) }) };
     await run("UPDATE withdrawals SET status = 'approved', reviewed_at = ?, reviewed_by = ?, paid_from_id = ? WHERE id = ?", now, actorId, paidFromId, id);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import th from "@/i18n/locales/th";
 import { invalidate } from "@/server/cache";
 import { json, q, q1, run } from "@/server/db";
 import { changedDays } from "@/server/stats/build";
@@ -39,10 +40,12 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     await run("UPDATE rounds SET status = 'resulted', result = ?, resulted_at = 5 WHERE id = ?", json.str(WIN), round);
     await settlePending(round, 6);
   };
+  /** The id of the request waiting for approval: what the second person's screen was showing. */
+  const asked = async () => Number((await q1<{ id: number | null }>("SELECT MAX(id) AS id FROM round_results WHERE status = 'pending'"))!.id ?? 0);
   const correct = async (to: typeof WIN | "void") => {
     const change = to === "void" ? ({ kind: "cancel" } as const) : ({ kind: "correction", input: to } as const);
     expect(await requestCorrection(round, change, "wrong official result", ASKER, now)).toEqual({ ok: true });
-    expect(await confirmCorrection(round, to === "void" ? null : to, APPROVER, now)).toEqual({ ok: true });
+    expect(await confirmCorrection(round, await asked(), to === "void" ? null : to, APPROVER, now)).toEqual({ ok: true });
   };
 
   beforeEach(async () => {
@@ -133,7 +136,7 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     // Make the second member's step fail once.
     await run("UPDATE users SET cashback_balance = cashback_balance WHERE id = ?", member);
-    await confirmCorrection(round, LOSE, APPROVER, now, { onMember: (n) => { if (n === 1) throw new Error("crash"); } }).catch(() => {});
+    await confirmCorrection(round, await asked(), LOSE, APPROVER, now, { onMember: (n) => { if (n === 1) throw new Error("crash"); } }).catch(() => {});
     spy.mockRestore();
     expect(await q1("SELECT settled_at FROM rounds WHERE id = ?", round)).toEqual({ settled_at: null });
     expect(await resumeSettlements(now + 1)).toBe(1);
@@ -170,14 +173,15 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     await bill("CPJ", member, "25");
     await pay();
     await requestCorrection(round, { kind: "correction", input: LOSE }, "wrong result", ASKER, now);
-    expect(await confirmCorrection(round, LOSE, ASKER, now)).toMatchObject({ ok: false, reason: "sameUser" });
-    expect(await checkCorrection(round, WIN, APPROVER, now)).toMatchObject({ ok: false, reason: "mismatch", fields: ["top3"] });
+    expect(await confirmCorrection(round, await asked(), LOSE, ASKER, now)).toMatchObject({ ok: false, reason: "sameUser" });
+    expect(await checkCorrection(round, await asked(), WIN, APPROVER, now)).toMatchObject({ ok: false, reason: "mismatch", fields: ["top3"] });
     await run("UPDATE users SET balance = 20000 WHERE id = ?", member);
-    expect(await checkCorrection(round, LOSE, APPROVER, now)).toEqual({
+    expect(await checkCorrection(round, await asked(), LOSE, APPROVER, now)).toEqual({
       ok: true,
       preview: { members: [{ userId: member, name: "", change: -94_900, shortfall: 75_000 }], change: -94_900, shortfall: 75_000 },
     });
-    const both = await Promise.all([confirmCorrection(round, LOSE, APPROVER, now), confirmCorrection(round, LOSE, 3, now)]);
+    const id = await asked();
+    const both = await Promise.all([confirmCorrection(round, id, LOSE, APPROVER, now), confirmCorrection(round, id, LOSE, 3, now)]);
     expect(both.filter((r) => r.ok)).toHaveLength(1);
     expect(await owed(member)).toBe(74_900);
     const log = await q<{ detail: string | null }>("SELECT detail FROM audit_log WHERE action IN ('round.correction.request','round.result.mismatch')");
@@ -190,7 +194,7 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     await settlePending(round, 3 * DAY);
     const later = 10 * DAY;
     await requestCorrection(round, { kind: "correction", input: LOSE }, "wrong result", ASKER, later);
-    expect(await confirmCorrection(round, LOSE, APPROVER, later)).toEqual({ ok: true });
+    expect(await confirmCorrection(round, await asked(), LOSE, APPROVER, later)).toEqual({ ok: true });
     expect(await q1("SELECT settled_at FROM bills WHERE code = 'CPM'")).toEqual({ settled_at: 3 * DAY });
     expect((await changedDays(later - 1)).sort((a, b) => a - b)).toEqual([dayOf(1), dayOf(3 * DAY)]);
   });
@@ -205,6 +209,34 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
       expect(r).not.toHaveProperty("fields");
     }
     expect(await q("SELECT 1 FROM audit_log WHERE action = 'round.result.mismatch'")).toEqual([]);
+  });
+
+  test("never applies a request the approver was not looking at", async () => {
+    await bill("CPP", member, "25");
+    await pay();
+    await requestCorrection(round, { kind: "correction", input: LOSE }, "wrong result", ASKER, now);
+    const seen = await asked();
+    // The first person withdraws it and asks to void the draw while the approver's page is still open.
+    expect(await rejectCorrection(round, seen, ASKER, now)).toEqual({ ok: true });
+    await requestCorrection(round, { kind: "cancel" }, "void instead", ASKER, now);
+    const changed = { ok: false, error: th.errors.rounds.correctionChanged };
+    expect(await checkCorrection(round, seen, LOSE, APPROVER, now)).toMatchObject(changed);
+    expect(await confirmCorrection(round, seen, LOSE, APPROVER, now)).toMatchObject(changed);
+    expect(await rejectCorrection(round, seen, APPROVER, now)).toMatchObject(changed);
+    expect(await q1("SELECT status FROM rounds WHERE id = ?", round)).toEqual({ status: "resulted" });
+    expect(await wallets(member)).toEqual([95_000, 0, 0]);
+    expect(await q1("SELECT kind, status FROM round_results WHERE id = ?", await asked())).toEqual({ kind: "cancel", status: "pending" });
+  });
+
+  test("says a withdrawal blocked by a mismatched correction needs staff to look, not to wait", async () => {
+    await bill("CPQ", member, "25");
+    await pay();
+    await correct(LOSE);
+    const withdrawal = (await run("INSERT INTO withdrawals (user_id, amount, bank_code, bank_account, bank_name, created_at) VALUES (?, 100, 'x', 'x', 'x', 1)", member)).lastId;
+    await run("UPDATE settlement_runs SET status = 'running' WHERE kind = 'correction'");
+    expect(await approveWithdrawal(withdrawal, 1, now)).toEqual({ ok: false, error: th.errors.wallet.correctionRunning });
+    await run("UPDATE settlement_runs SET status = 'mismatch' WHERE kind = 'correction'");
+    expect(await approveWithdrawal(withdrawal, 1, now)).toEqual({ ok: false, error: th.errors.wallet.correctionMismatch });
   });
 
   test("voiding gives back only the turnover the payout really used", async () => {
@@ -240,9 +272,9 @@ describe.skipIf(!hasTestDb)("correcting a paid result", () => {
     await bill("CPK", member, "25");
     await pay();
     await requestCorrection(round, { kind: "cancel" }, "wrong result", ASKER, now);
-    expect(await rejectCorrection(round, APPROVER, now)).toEqual({ ok: true });
+    expect(await rejectCorrection(round, await asked(), APPROVER, now)).toEqual({ ok: true });
     expect(await wallets(member)).toEqual([95_000, 0, 0]);
-    expect((await confirmCorrection(round, null, APPROVER, now)).ok).toBe(false);
+    expect((await confirmCorrection(round, await asked(), null, APPROVER, now)).ok).toBe(false);
   });
 
   test("holds back withdrawals of the members involved while it is being applied", async () => {

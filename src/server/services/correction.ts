@@ -96,11 +96,13 @@ export async function requestCorrection(roundId: number, change: Change, reason:
 type Approval = { ok: true; pending: Pending; target: RoundResult | "void" } | Refusal;
 
 /** Second person: another account, who retypes a new result without seeing it (a void needs only approval). */
-async function approval(roundId: number, input: ResultInput | null, actorId: number, now: number): Promise<Approval> {
+async function approval(roundId: number, requestId: number, input: ResultInput | null, actorId: number, now: number): Promise<Approval> {
   const { t } = await serverI18n();
   const e = t.errors;
   const pending = await pendingChange(roundId);
   if (!pending) return refused(e.rounds.noCorrection);
+  // Withdrawn and replaced since the page was opened: what was read is not what would be applied.
+  if (pending.id !== requestId) return refused(e.rounds.correctionChanged);
   if (pending.entered_by === actorId) return { ok: false, error: e.rounds.sameUser, reason: "sameUser" };
   if (pending.kind === "cancel") return { ok: true, pending, target: "void" };
   const round = await roundState(roundId);
@@ -184,11 +186,12 @@ const total = (lines: Line[]) => lines.reduce((s, l) => s + l.amount, 0);
 /** Compare without applying, and show who gains, who pays back and who cannot. */
 export async function checkCorrection(
   roundId: number,
+  requestId: number,
   input: ResultInput | null,
   actorId: number,
   now = Date.now(),
 ): Promise<{ ok: true; preview: CorrectionPreview } | Refusal> {
-  const second = await approval(roundId, input, actorId, now);
+  const second = await approval(roundId, requestId, input, actorId, now);
   if (!second.ok) return second;
   const base = await correctable(roundId, await errorsT());
   if (!base.ok) return base.refusal;
@@ -217,6 +220,7 @@ export interface ApplyHooks {
 /** Second person approves: the round takes its new state and the money is adjusted. */
 export async function confirmCorrection(
   roundId: number,
+  requestId: number,
   input: ResultInput | null,
   actorId: number,
   now = Date.now(),
@@ -227,7 +231,7 @@ export async function confirmCorrection(
     // The round lock first: of two approvals only one still finds the request waiting.
     const base = await correctable(roundId, e, true);
     if (!base.ok) return base.refusal;
-    const second = await approval(roundId, input, actorId, now);
+    const second = await approval(roundId, requestId, input, actorId, now);
     if (!second.ok) return second;
     const { pending, target } = second;
     await run("UPDATE round_results SET status = 'superseded' WHERE round_id = ? AND status = 'confirmed'", roundId);
@@ -260,12 +264,13 @@ export async function confirmCorrection(
   return outcome;
 }
 
-export async function rejectCorrection(roundId: number, actorId: number, now = Date.now()): Promise<{ ok: true } | Refusal> {
+export async function rejectCorrection(roundId: number, requestId: number, actorId: number, now = Date.now()): Promise<{ ok: true } | Refusal> {
   const e = await errorsT();
   return tx(async (): Promise<{ ok: true } | Refusal> => {
     await roundState(roundId, true);
     const pending = await pendingChange(roundId);
     if (!pending) return refused(e.rounds.noCorrection);
+    if (pending.id !== requestId) return refused(e.rounds.correctionChanged);
     await run("UPDATE round_results SET status = 'rejected', confirmed_by = ?, confirmed_at = ? WHERE id = ?", actorId, now, pending.id);
     await audit(actorId, "round.correction.reject", `round:${roundId}`, { requestedBy: pending.entered_by }, now);
     return { ok: true };

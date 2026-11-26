@@ -189,8 +189,8 @@ export async function getAdminRound(roundId: number) {
   const [change, lastRun, waiting, totals, liability, exposure, manual] = await Promise.all([
     // A correction waiting for approval. The corrected digits are never selected.
     canCorrect
-      ? q1<{ kind: "correction" | "cancel"; reason: string | null; entered_by: number | null; entered_at: number; entered_name: string | null }>(
-          `SELECT p.kind, p.reason, p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
+      ? q1<{ id: number; kind: "correction" | "cancel"; reason: string | null; entered_by: number | null; entered_at: number; entered_name: string | null }>(
+          `SELECT p.id, p.kind, p.reason, p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
            FROM round_results p LEFT JOIN employees e ON e.id = p.entered_by
            WHERE p.round_id = ? AND p.status = 'pending' AND p.kind IN ('correction','cancel') ORDER BY p.id DESC LIMIT 1`,
           roundId,
@@ -225,6 +225,7 @@ export async function getAdminRound(roundId: number) {
         ? {
             pending: change
               ? {
+                  id: change.id,
                   kind: change.kind,
                   reason: change.reason ?? "",
                   requestedBy: change.entered_name ?? "-",

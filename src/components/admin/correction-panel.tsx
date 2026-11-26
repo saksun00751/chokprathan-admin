@@ -13,6 +13,8 @@ import { fmt, formatDateTime, formatNumber } from "@/i18n/format";
 import { checkCorrectionAction, confirmCorrectionAction, rejectCorrectionAction, requestCorrectionAction, type CorrectionCheck } from "@/server/actions/admin";
 
 export interface PendingCorrection {
+  /** The request this screen shows; approvals name it. */
+  id: number;
   kind: "correction" | "cancel";
   reason: string;
   requestedBy: string;
@@ -29,7 +31,7 @@ const money = (satang: number) => `${satang > 0 ? "+" : satang < 0 ? "-" : ""}à¸
  */
 export function CorrectionPanel({ roundId, format, round, pending }: { roundId: number; format: ResultFormat; round: string; pending: PendingCorrection | null }) {
   return pending ? (
-    <Approve roundId={roundId} format={format} round={round} pending={pending} />
+    <Approve key={pending.id} roundId={roundId} format={format} round={round} pending={pending} />
   ) : (
     <Request roundId={roundId} format={format} round={round} />
   );
@@ -131,7 +133,7 @@ function Approve({ roundId, format, round, pending }: { roundId: number; format:
       disabled={busy}
       onClick={async () => {
         const answer = await ask({ title: c.rejectTitle, tone: "danger", details: [[t.admin.shell.confirm.round, round]], confirmLabel: label });
-        if (answer.ok) send(() => rejectCorrectionAction(roundId));
+        if (answer.ok) send(() => rejectCorrectionAction(roundId, pending.id));
       }}
     >
       {label}
@@ -163,7 +165,7 @@ function Approve({ roundId, format, round, pending }: { roundId: number; format:
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
-          const r = await checkCorrectionAction(roundId, input);
+          const r = await checkCorrectionAction(roundId, pending.id, input);
           if (!r.ok) return void toast.error(r.error);
           setChecked(r.data);
         });
@@ -226,7 +228,7 @@ function Approve({ roundId, format, round, pending }: { roundId: number; format:
                 note: `${fmt(c.totals, { n: formatNumber(preview.members.length), change: money(preview.change) })} Â· ${c.confirmNote}`,
                 confirmLabel: c.confirm,
               });
-              if (answer.ok) send(() => confirmCorrectionAction(roundId, input));
+              if (answer.ok) send(() => confirmCorrectionAction(roundId, pending.id, input));
             }}
           >
             {c.confirm}
