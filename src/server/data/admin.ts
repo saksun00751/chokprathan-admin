@@ -18,6 +18,7 @@ import { listPackages } from "@/server/services/packages";
 import { exposureTable, manualLimitList, roundBetConfigs, roundTotals } from "@/server/services/risk";
 import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
+import { roundPagePermission } from "@/domain/permissions";
 import { roundHasBills } from "@/server/services/round-configs";
 import { getRound, phaseOf, toRound, type RoundPhase, type RoundRow } from "@/server/services/rounds";
 import { pointsOf } from "@/server/services/points";
@@ -180,7 +181,8 @@ export async function getAwaitingResults() {
 
 export async function getAdminRound(roundId: number) {
   const { lang, t } = await getI18n();
-  const viewer = await requireEmployee("rounds.view");
+  const signedIn = await getEmployee();
+  const viewer = await requireEmployee(roundPagePermission(signedIn?.permissions ?? []));
   await io();
   const now = Date.now();
   const round = await getRound(roundId);

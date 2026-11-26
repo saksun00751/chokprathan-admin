@@ -48,6 +48,13 @@ export function hasPermission(granted: readonly string[], need: Permission): boo
   return granted.includes(ALL) || granted.includes(need);
 }
 
+/**
+ * The permission a round's page asks for. Correction requests are approved on that page, so holding
+ * `rounds.correct` opens it too.
+ */
+export const roundPagePermission = (granted: readonly string[]): Permission =>
+  !hasPermission(granted, "rounds.view") && hasPermission(granted, "rounds.correct") ? "rounds.correct" : "rounds.view";
+
 /* ---------- no privilege escalation ---------- */
 
 /** What the escalation rules need to know about a staff member or a role. */
