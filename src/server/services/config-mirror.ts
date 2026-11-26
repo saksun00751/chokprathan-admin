@@ -2,6 +2,7 @@ import "server-only";
 import { BET_TYPE_ORDER, betTypesFor } from "chokprathan-core/rules/betTypes";
 import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
 import { json, q1, run, tx } from "@/server/db";
+import { freshSettings } from "./fresh-settings";
 import { listLottos } from "./lottos";
 import { getSettings } from "./settings";
 
@@ -24,6 +25,7 @@ async function saveProfile(code: string, profile: RiskProfile, now: number): Pro
  * source until the new screens write these tables directly; delete this file then.
  */
 export async function mirrorLegacyConfig(now = Date.now()): Promise<void> {
+  freshSettings();
   const [lottos, settings] = await Promise.all([listLottos({ includeDisabled: true }), getSettings()]);
   await tx(async () => {
     await run("INSERT IGNORE INTO price_packages (code, name, sort, updated_at) VALUES (?, ?, 0, ?)", STANDARD_PACKAGE, "มาตรฐาน", now);

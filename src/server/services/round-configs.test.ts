@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { invalidate } from "@/server/cache";
+import { invalidate, setCacheEnabled } from "@/server/cache";
 import { json, q, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
 import { roundBetConfigs } from "./risk";
-import { applyConfigToRound, getRoundConfig, refreshRoundConfigs } from "./round-configs";
+import { applyConfigToRound, getRoundConfig, refreshRoundConfigs, roundHasBills } from "./round-configs";
 
 const now = 1_000_000;
 
@@ -64,6 +64,32 @@ describe.skipIf(!hasTestDb)("round configs on MariaDB", () => {
     await setRate(70000);
     await refreshRoundConfigs(now);
     expect(await top3()).toBe(80000);
+  });
+
+  test("builds from what is stored now, not from this process's cached copy", async () => {
+    setCacheEnabled(true);
+    try {
+      await refreshRoundConfigs(now);
+      // Another process saves a new rate: this one's cache is not told.
+      await run("UPDATE lottos SET rates = ? WHERE id = ?", json.str({ top3: 60000 }), lottoId);
+      await refreshRoundConfigs(now);
+      expect(await top3()).toBe(60000);
+
+      await addBill();
+      await run("UPDATE lottos SET rates = ? WHERE id = ?", json.str({ top3: 50000 }), lottoId);
+      expect(await applyConfigToRound(roundId, 1, now)).toEqual({ ok: true, version: 2 });
+      expect(await top3()).toBe(50000);
+    } finally {
+      setCacheEnabled(false);
+    }
+  });
+
+  test("counts a cancelled bill: the round stays locked, so staff must be offered the apply button", async () => {
+    await refreshRoundConfigs(now);
+    expect(await roundHasBills(roundId)).toBe(false);
+    await addBill();
+    await run("UPDATE bills SET status = 'cancelled' WHERE round_id = ?", roundId);
+    expect(await roundHasBills(roundId)).toBe(true);
   });
 
   test("drops an override the lottery no longer has", async () => {

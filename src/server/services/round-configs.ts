@@ -4,6 +4,7 @@ import type { BetTypeCode, RiskProfile } from "chokprathan-core/rules/types";
 import { json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
 import { mirrorLegacyConfig } from "./config-mirror";
+import { freshSettings } from "./fresh-settings";
 import { listLottos } from "./lottos";
 import { getSettings } from "./settings";
 
@@ -16,6 +17,7 @@ type OverrideRow = { lotto_id: number; package_id: number; bet_type: BetTypeCode
 
 /** Today's configuration of every lottery that can take bets, as the JSON a round stores. */
 async function currentConfigs(): Promise<Map<number, string>> {
+  freshSettings();
   const [lottos, settings, bets, packages, rates, overrides] = await Promise.all([
     listLottos({ includeDisabled: true }),
     getSettings(),
@@ -65,6 +67,11 @@ async function currentConfigs(): Promise<Map<number, string>> {
   return out;
 }
 
+/** A round with any bill, a cancelled one included, keeps its prices until staff apply new ones. */
+export async function roundHasBills(roundId: number): Promise<boolean> {
+  return !!(await q1("SELECT id FROM bills WHERE round_id = ? LIMIT 1", roundId));
+}
+
 type Candidate = { id: number; lotto_id: number; version: number | null; config: string | null };
 
 /**
@@ -87,7 +94,7 @@ export async function syncRoundConfigs(now = Date.now()): Promise<{ created: num
     await tx(async () => {
       // Betting share-locks the round row, so this waits for a bill in flight and then sees it.
       if (!(await q1("SELECT id FROM rounds WHERE id = ? AND status = 'scheduled' FOR UPDATE", r.id))) return;
-      if (await q1("SELECT id FROM bills WHERE round_id = ? LIMIT 1", r.id)) return;
+      if (await roundHasBills(r.id)) return;
       if (r.version === null) {
         // IGNORE: another process may have stored the first version meanwhile.
         created += (await run("INSERT IGNORE INTO round_configs (round_id, version, config, created_at) VALUES (?, 1, ?, ?)", r.id, want, now)).changes;

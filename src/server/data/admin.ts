@@ -18,6 +18,7 @@ import { listPackages } from "@/server/services/packages";
 import { exposureTable, manualLimitList, roundBetConfigs, roundTotals } from "@/server/services/risk";
 import { lottoName, lottoShort, roundName } from "@/i18n/labels";
 import { getI18n } from "@/i18n/rsc";
+import { roundHasBills } from "@/server/services/round-configs";
 import { getRound, phaseOf, toRound, type RoundPhase, type RoundRow } from "@/server/services/rounds";
 import { pointsOf } from "@/server/services/points";
 import { gameHistory } from "@/server/data/game-history";
@@ -218,7 +219,7 @@ export async function getAdminRound(roundId: number) {
     serverNow: now,
     canResult: can(viewer, "rounds.result"),
     // Only a draw that already has bills keeps old prices; the others follow the settings by themselves.
-    canApplyConfig: can(viewer, "lottos.manage") && round.status === "scheduled" && now < round.closesAt && totals.bills > 0,
+    canApplyConfig: can(viewer, "lottos.manage") && round.status === "scheduled" && now < round.closesAt && (await roundHasBills(round.id)),
     // Only a draw that is resulted and fully paid can be asked to change.
     correction:
       canCorrect && round.status === "resulted" && (change !== undefined || (round.settledAt !== null && lastRun?.status === "done"))
