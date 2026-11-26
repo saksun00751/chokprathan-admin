@@ -232,8 +232,9 @@ export async function createRound(lottoId: number, times: RoundTimes, actorId: n
       lotto.schedule.kind === "interval"
         ? Math.max(
             (await q1<{ n: number | null }>("SELECT MAX(round_no) AS n FROM rounds WHERE lotto_id = ? AND day_key = ? FOR UPDATE", lottoId, key))?.n ?? 0,
-            // The scheduler numbers the day's own rounds from 1, whether or not they exist yet.
-            lotto.autoRounds ? lotto.schedule.count : 0,
+            // The scheduler numbers the day's own rounds from 1, whether or not they exist yet, and
+            // automatic creation can be switched back on the same day.
+            lotto.schedule.count,
           ) + 1
         : null;
     // IGNORE: (lotto_id, closes_at) is unique, cancelled rounds included.
