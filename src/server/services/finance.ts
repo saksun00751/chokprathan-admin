@@ -92,6 +92,10 @@ export async function approveDeposit(depositId: number, actorId: number | null, 
     if (!d) return { ok: false as const, error: e.wallet.depositNotFound };
     if (d.status !== "pending" && d.status !== "awaiting") return { ok: false as const, error: e.wallet.alreadyProcessed };
     const ref = `DP${String(d.id).padStart(6, "0")}`;
+    // Under the member's lock: a deposit made while owing goes to the debt, so it earns no bonus and
+    // asks for no turnover.
+    await q1("SELECT id FROM users WHERE id = ? FOR UPDATE", d.user_id);
+    const owing = (await outstandingDebt({ q, q1, run }, d.user_id)) > 0;
     await move(d.user_id, "balance", d.amount, "deposit", { ref, note: "ฝากเงิน", now, actorId });
     // Loyalty points for the deposit itself (never for the promotion bonus below).
     await awardPoints(d.user_id, d.amount, "deposit", { ref, actorId, now });
@@ -99,7 +103,7 @@ export async function approveDeposit(depositId: number, actorId: number | null, 
     if (d.bank_account_id) await bankMove(Number(d.bank_account_id), d.amount, "deposit", ref, null, actorId, now);
 
     let bonus = 0;
-    if (d.promotion_id !== null && !(await promotionProblem(d.user_id, d.promotion_id, d.amount))) {
+    if (!owing && d.promotion_id !== null && !(await promotionProblem(d.user_id, d.promotion_id, d.amount))) {
       const p = (await q1<PromotionRow>("SELECT * FROM promotions WHERE id = ?", d.promotion_id))!;
       bonus = Math.floor((d.amount * p.bonus_percent) / 100);
       if (p.max_bonus > 0) bonus = Math.min(bonus, p.max_bonus);

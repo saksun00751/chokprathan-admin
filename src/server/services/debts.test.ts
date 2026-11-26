@@ -47,4 +47,20 @@ describe.skipIf(!hasTestDb)("member debts in the back office", () => {
     expect(await q("SELECT action FROM audit_log WHERE target = ?", `user:${user}`)).toEqual([{ action: "debt.writeoff" }]);
     expect(await balance()).toBe(0);
   });
+
+  test("a deposit approved while the member owes earns no bonus and adds no turnover", async () => {
+    const promo = (await run("INSERT INTO promotions (title, summary, details, bonus_percent, turnover_x, once_per_user, created_at) VALUES ('p', 'p', 'p', 100, 3, 0, 1)")).lastId;
+    const deposit = async () =>
+      (await run("INSERT INTO deposits (user_id, amount, promotion_id, status, expires_at, created_at) VALUES (?, 50000, ?, 'pending', ?, ?)", user, promo, now + 10_000, now)).lastId;
+    const after = () => q1("SELECT balance, turnover_required FROM users WHERE id = ?", user);
+
+    expect((await approveDeposit(await deposit(), 1, now)).ok).toBe(true);
+    expect(await after()).toEqual({ balance: 0, turnover_required: 0 });
+    expect(await q1("SELECT outstanding FROM member_debts WHERE id = ?", debt)).toEqual({ outstanding: 24_900 });
+    expect(await q("SELECT 1 FROM promotion_claims")).toEqual([]);
+
+    await run("UPDATE member_debts SET outstanding = 0 WHERE id = ?", debt);
+    expect((await approveDeposit(await deposit(), 1, now + 1)).ok).toBe(true);
+    expect(await after()).toEqual({ balance: 100_000, turnover_required: 300_000 });
+  });
 });
