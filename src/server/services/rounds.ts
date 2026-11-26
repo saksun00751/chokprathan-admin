@@ -17,7 +17,7 @@ import { settlePending } from "./settlement";
 import { getLotto, listLottos, type Lotto } from "./lottos";
 
 export type RoundStatus = "scheduled" | "pending_confirm" | "resulted" | "cancelled";
-export type RoundPhase = "upcoming" | "open" | "closed" | "confirming" | "resulted" | "cancelled";
+export type RoundPhase = "upcoming" | "open" | "closed" | "resulted" | "cancelled";
 
 export interface Round {
   id: number;
@@ -71,7 +71,6 @@ export function toRound(r: RoundRow): Round {
 export function phaseOf(r: Pick<Round, "opensAt" | "closesAt" | "status">, now: number): RoundPhase {
   if (r.status === "cancelled") return "cancelled";
   if (r.status === "resulted") return "resulted";
-  if (r.status === "pending_confirm") return "confirming";
   if (now < r.opensAt) return "upcoming";
   if (now < r.closesAt) return "open";
   return "closed";
@@ -313,8 +312,8 @@ export async function payRound(roundId: number, now = Date.now()) {
 }
 
 /**
- * The house game draws itself: no second person, confirmed as the system. Every other lottery's
- * result goes through `services/results`.
+ * The house game draws itself, confirmed as the system. Every other lottery's result goes through
+ * `services/results`.
  */
 export async function drawResult(roundId: number, input: ResultInput, now = Date.now()): Promise<SetResultOutcome> {
   const { t } = await serverI18n();
@@ -331,7 +330,7 @@ export async function drawResult(roundId: number, input: ResultInput, now = Date
     const locked = await q1<RoundRow>("SELECT * FROM rounds WHERE id = ? FOR UPDATE", roundId);
     if (!locked) return { ok: false, error: e.rounds.notFound };
     if (locked.status === "cancelled") return { ok: false, error: e.rounds.cancelled };
-    // A result typed by staff and waiting for confirmation is left to them.
+    // A result left over from the old two-person check is for staff to type again.
     if (locked.status !== "scheduled") return { ok: false, error: e.rounds.resulted };
     if (now < locked.closes_at) return { ok: false, error: e.rounds.notClosed };
     await run(
@@ -364,7 +363,7 @@ export async function cancelRound(
     if (!locked) return { ok: false as const, error: e.rounds.notFound };
     if (locked.status !== "scheduled" && locked.status !== "pending_confirm") return { ok: false as const, error: e.rounds.done };
     await run("UPDATE rounds SET status = 'cancelled', resulted_at = ?, resulted_by = ? WHERE id = ?", now, actorId, roundId);
-    // A result still waiting for confirmation will never be used.
+    // A result left waiting by the old two-person check will never be used.
     if (locked.status === "pending_confirm") await run("UPDATE round_results SET status = 'superseded' WHERE round_id = ? AND status = 'pending'", roundId);
     await audit(actorId, "round.cancel", `round:${roundId}`, detail, now);
     return { ok: true as const };

@@ -2,15 +2,15 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { invalidate } from "@/server/cache";
 import { q, q1, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
-import { checkResult, confirmResult, enterResult, rejectResult } from "./results";
+import { previewResult, submitResult } from "./results";
 import { cancelRound, drawResult } from "./rounds";
 
-const ENTERER = 1;
-const CHECKER = 2;
+const STAFF = 1;
+const OTHER = 2;
 const right = { top3: "925", bottom2: "49" };
 const now = 10_000;
 
-describe.skipIf(!hasTestDb)("results confirmed by a second person", () => {
+describe.skipIf(!hasTestDb)("results entered by one person", () => {
   let lotto: number;
   let round: number;
   let user: number;
@@ -51,77 +51,51 @@ describe.skipIf(!hasTestDb)("results confirmed by a second person", () => {
     await addBill("CPTWO2", "11");
   });
 
-  test("typing a result pays nothing and keeps the digits out of the round and the audit log", async () => {
-    expect(await enterResult(round, right, ENTERER, now)).toEqual({ ok: true });
-    expect(await state()).toEqual({ status: "pending_confirm", result: null, resulted_by: null });
+  test("shows what a result will pay and writes nothing", async () => {
+    expect(await previewResult(round, right, now)).toEqual({ ok: true, preview: { bills: 2, winners: 1, payout: 95000 } });
+    expect(await state()).toEqual({ status: "scheduled", result: null, resulted_by: null });
+    expect(await q("SELECT id FROM round_results WHERE round_id = ?", round)).toEqual([]);
     expect(await balance()).toBe(0);
-    const log = await q<{ action: string; detail: string | null }>("SELECT action, detail FROM audit_log WHERE target = ?", `round:${round}`);
-    expect(log.map((l) => l.action)).toEqual(["round.result.enter"]);
-    expect(JSON.stringify(log)).not.toContain("925");
   });
 
-  test("refuses a result before closing, and a second one while one waits", async () => {
-    expect((await enterResult(round, right, ENTERER, 4999)).ok).toBe(false);
-    expect((await enterResult(round, { top3: "9", bottom2: "49" }, ENTERER, now)).ok).toBe(false);
-    await enterResult(round, right, ENTERER, now);
-    expect((await enterResult(round, right, CHECKER, now)).ok).toBe(false);
+  test("one person's result pays at once and records who entered it", async () => {
+    expect(await submitResult(round, right, STAFF, now)).toEqual({ ok: true });
+    expect(await state()).toMatchObject({ status: "resulted", resulted_by: STAFF });
+    expect(await balance()).toBe(95000);
+    expect(await q1("SELECT status, entered_by, confirmed_by FROM round_results WHERE round_id = ?", round)).toEqual({ status: "confirmed", entered_by: STAFF, confirmed_by: STAFF });
+    expect(await q1("SELECT status FROM settlement_runs WHERE round_id = ?", round)).toEqual({ status: "done" });
+    expect((await q1("SELECT actor_id FROM audit_log WHERE action = 'round.result' AND target = ?", `round:${round}`))).toBeTruthy();
+  });
+
+  test("refuses a result before closing, an incomplete one, and a second one", async () => {
+    expect((await previewResult(round, right, 4999)).ok).toBe(false);
+    expect((await submitResult(round, right, STAFF, 4999)).ok).toBe(false);
+    expect((await submitResult(round, { top3: "9", bottom2: "49" }, STAFF, now)).ok).toBe(false);
+    expect((await submitResult(round, right, STAFF, now)).ok).toBe(true);
+    expect((await previewResult(round, right, now)).ok).toBe(false);
+    expect((await submitResult(round, right, OTHER, now)).ok).toBe(false);
     expect(await q("SELECT id FROM round_results WHERE round_id = ?", round)).toHaveLength(1);
   });
 
-  test("the person who typed it may neither check nor confirm it", async () => {
-    await enterResult(round, right, ENTERER, now);
-    expect(await checkResult(round, right, ENTERER, now)).toMatchObject({ ok: false, reason: "sameUser" });
-    expect(await confirmResult(round, right, ENTERER, now)).toMatchObject({ ok: false, reason: "sameUser" });
-    expect((await state())!.status).toBe("pending_confirm");
-  });
-
-  test("names the boxes that differ, pays nothing, and logs the attempt without digits", async () => {
-    await enterResult(round, right, ENTERER, now);
-    const wrong = { top3: "925", bottom2: "50" };
-    expect(await checkResult(round, wrong, CHECKER, now)).toMatchObject({ ok: false, reason: "mismatch", fields: ["bottom2"] });
-    expect(await confirmResult(round, wrong, CHECKER, now)).toMatchObject({ ok: false, reason: "mismatch" });
-    expect(await balance()).toBe(0);
-    const log = await q<{ detail: string | null }>("SELECT detail FROM audit_log WHERE action = 'round.result.mismatch'");
-    expect(log).toHaveLength(2);
-    expect(JSON.stringify(log)).not.toMatch(/925|49|50/);
-  });
-
-  test("shows what a matching result will pay before paying it", async () => {
-    await enterResult(round, right, ENTERER, now);
-    expect(await checkResult(round, right, CHECKER, now)).toEqual({ ok: true, preview: { bills: 2, winners: 1, payout: 95000 } });
-    expect(await balance()).toBe(0);
-  });
-
-  test("confirming pays once, even when sent twice at the same moment", async () => {
-    await enterResult(round, right, ENTERER, now);
-    const both = await Promise.all([confirmResult(round, right, CHECKER, now), confirmResult(round, right, 3, now)]);
+  test("pays once, even when sent twice at the same moment", async () => {
+    const both = await Promise.all([submitResult(round, right, STAFF, now), submitResult(round, right, OTHER, now)]);
     expect(both.filter((r) => r.ok)).toHaveLength(1);
-    expect(await state()).toMatchObject({ status: "resulted" });
     expect(await balance()).toBe(95000);
     expect(await q("SELECT 1 FROM transactions WHERE type = 'win'")).toHaveLength(1);
-    expect(await q1("SELECT status, entered_by FROM round_results WHERE round_id = ?", round)).toEqual({ status: "confirmed", entered_by: ENTERER });
-    expect(await q1("SELECT status FROM settlement_runs WHERE round_id = ?", round)).toEqual({ status: "done" });
   });
 
-  test("a rejected result goes back to waiting for entry", async () => {
-    await enterResult(round, right, ENTERER, now);
-    expect(await rejectResult(round, CHECKER, { ownOnly: false }, now)).toEqual({ ok: true });
-    expect((await state())!.status).toBe("scheduled");
-    expect((await enterResult(round, right, ENTERER, now)).ok).toBe(true);
+  test("replaces a result left waiting by the old two-person check", async () => {
+    await run("INSERT INTO round_results (round_id, result, entered_by, entered_at) VALUES (?, '{}', ?, 1)", round, STAFF);
+    await run("UPDATE rounds SET status = 'pending_confirm' WHERE id = ?", round);
+    expect(await submitResult(round, right, STAFF, now)).toEqual({ ok: true });
+    expect(await q("SELECT status FROM round_results WHERE round_id = ? ORDER BY id", round)).toEqual([{ status: "superseded" }, { status: "confirmed" }]);
+    expect(await balance()).toBe(95000);
   });
 
-  test("withdrawing is limited to one's own result", async () => {
-    await enterResult(round, right, ENTERER, now);
-    expect(await rejectResult(round, CHECKER, { ownOnly: true }, now)).toMatchObject({ ok: false });
-    expect(await rejectResult(round, ENTERER, { ownOnly: true }, now)).toEqual({ ok: true });
-  });
-
-  test("cancelling a waiting round refunds it and retires the typed result", async () => {
-    await enterResult(round, right, ENTERER, now);
-    expect(await cancelRound(round, CHECKER, now)).toMatchObject({ ok: true, refunded: 2 });
+  test("cancelling a closed round refunds it and refuses a later result", async () => {
+    expect(await cancelRound(round, STAFF, now)).toMatchObject({ ok: true, refunded: 2 });
     expect(await balance()).toBe(2000);
-    expect(await q1("SELECT status FROM round_results WHERE round_id = ?", round)).toEqual({ status: "superseded" });
-    expect((await confirmResult(round, right, CHECKER, now)).ok).toBe(false);
+    expect((await submitResult(round, right, STAFF, now)).ok).toBe(false);
   });
 
   test("only the house game may draw itself, confirmed as the system", async () => {

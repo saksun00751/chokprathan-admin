@@ -4,7 +4,8 @@ import type { Dict } from "@/i18n/dictionaries";
 export function reportRoundStatus(status: string, t: Dict): string {
   const words: Record<string, string> = {
     scheduled: t.lotto.phase.closed,
-    pending_confirm: t.admin.shell.phase.confirming,
+    // Only left by the old two-person check: closed, and open to being typed again.
+    pending_confirm: t.lotto.phase.closed,
     resulted: t.lotto.phase.resulted,
     cancelled: t.lotto.phase.cancelled,
   };

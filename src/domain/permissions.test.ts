@@ -50,3 +50,10 @@ describe("managing staff and roles", () => {
     expect(mayEditRole(owner, null, ["settings.manage", "staff.manage"])).toBe(true);
   });
 });
+
+describe("a permission that no longer exists", () => {
+  test("does not stop anyone managing the role that still stores it", () => {
+    const actor = { isOwner: false, permissions: ["rounds.result"] };
+    expect(canActOnRole(actor, { isOwner: false, permissions: ["rounds.result", "rounds.confirm"] })).toBe(true);
+  });
+});

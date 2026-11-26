@@ -3,7 +3,7 @@ import { deriveResult, type ResultInput } from "@/core/rules/match";
 import type { RoundResult } from "@/core/rules/types";
 import { collectDebt } from "@/core/wallet/debt";
 import { entitled, settleLines, type EntitledItem, type Line, type Rewards, type Wallets } from "@/domain/entitlement";
-import { errorsT, serverI18n } from "@/i18n/server";
+import { errorsT } from "@/i18n/server";
 import { invalidate } from "@/server/cache";
 import { afterCommit, insertMany, json, q, q1, run, tx } from "@/server/db";
 import { audit } from "./audit";
@@ -11,7 +11,7 @@ import { getLotto } from "./lottos";
 import { differingFields, type Refusal } from "./results";
 
 /**
- * Correcting a paid result (a new result, or voiding the round) takes two people. Money is adjusted by
+ * Correcting a paid result (a new result, or voiding the round). Money is adjusted by
  * the difference between what each bill entitled whom to and what it entitles them to now, one member
  * per transaction. Old ledger rows are never edited; what cannot be taken back becomes a debt.
  */
@@ -19,12 +19,14 @@ import { differingFields, type Refusal } from "./results";
 export type Change = { kind: "correction"; input: ResultInput } | { kind: "cancel" };
 
 export interface CorrectionPreview {
+  /** The payout these figures start from; confirming names it. */
+  basis: number;
   members: { userId: number; name: string; change: number; shortfall: number }[];
   change: number;
   shortfall: number;
 }
 
-const refused = (error: string): Refusal => ({ ok: false, error, reason: "refused" });
+const refused = (error: string): Refusal => ({ ok: false, error });
 
 function invalidateViews(roundId: number) {
   const keys = ["lobby", "results", `limits:${roundId}`];
@@ -40,13 +42,6 @@ type Run = { id: number; kind: "result" | "cancel" | "correction" | "void"; stat
 const lastRun = (roundId: number) =>
   q1<Run>("SELECT id, kind, status, round_result_id, rewards FROM settlement_runs WHERE round_id = ? ORDER BY id DESC LIMIT 1", roundId);
 
-type Pending = { id: number; kind: "correction" | "cancel"; result: string | null; entered_by: number | null; reason: string | null };
-const pendingChange = (roundId: number) =>
-  q1<Pending>(
-    "SELECT id, kind, result, entered_by, reason FROM round_results WHERE round_id = ? AND status = 'pending' AND kind IN ('correction','cancel') ORDER BY id DESC LIMIT 1",
-    roundId,
-  );
-
 /** The finished payout a correction would start from, or why the round cannot be corrected. */
 async function correctable(roundId: number, e: Awaited<ReturnType<typeof errorsT>>, lock = false) {
   const round = await roundState(roundId, lock);
@@ -56,67 +51,20 @@ async function correctable(roundId: number, e: Awaited<ReturnType<typeof errorsT
   const unrecorded = await q1("SELECT id FROM bills WHERE round_id = ? AND status IN ('won','lost') AND (cashback_paid IS NULL OR turnover_taken IS NULL) LIMIT 1", roundId);
   const rewards = json.parse<Rewards | null>(run.rewards, null);
   if (unrecorded || !rewards) return { ok: false as const, refusal: refused(e.rounds.tooOld) };
-  return { ok: true as const, round, rewards };
+  return { ok: true as const, round, rewards, basis: run.id };
 }
 
-/** First person: ask for a new result or to void the round, saying why. Nothing moves yet. */
-export async function requestCorrection(roundId: number, change: Change, reason: string, actorId: number, now = Date.now()): Promise<{ ok: true } | Refusal> {
-  const { t } = await serverI18n();
-  const e = t.errors;
-  const why = reason.trim().slice(0, 255);
-  if (why.length < 3) return refused(e.rounds.reasonRequired);
-  return tx(async (): Promise<{ ok: true } | Refusal> => {
-    const base = await correctable(roundId, e, true);
-    if (!base.ok) return base.refusal;
-    if (await q1("SELECT id FROM round_results WHERE round_id = ? AND status = 'pending' LIMIT 1", roundId)) return refused(e.rounds.correctionPending);
-    let result: RoundResult | null = null;
-    if (change.kind === "correction") {
-      const lotto = await getLotto(base.round.lotto_id);
-      if (!lotto) return refused(e.rounds.lottoNotFound);
-      const derived = deriveResult(lotto.format, change.input, e.result);
-      if (!derived.ok) return refused(derived.error);
-      const current = json.parse<RoundResult | null>(base.round.result, null);
-      if (current && differingFields(lotto.format, current, derived.result).length === 0) return refused(e.rounds.sameResult);
-      result = derived.result;
-    }
-    await run(
-      "INSERT INTO round_results (round_id, kind, result, entered_by, entered_at, reason) VALUES (?, ?, ?, ?, ?, ?)",
-      roundId,
-      change.kind,
-      result ? json.str(result) : null,
-      actorId,
-      now,
-      why,
-    );
-    await audit(actorId, "round.correction.request", `round:${roundId}`, { kind: change.kind, reason: why }, now);
-    return { ok: true };
-  });
-}
-
-type Approval = { ok: true; pending: Pending; target: RoundResult | "void" } | Refusal;
-
-/** Second person: another account, who retypes a new result without seeing it (a void needs only approval). */
-async function approval(roundId: number, requestId: number, input: ResultInput | null, actorId: number, now: number): Promise<Approval> {
-  const { t } = await serverI18n();
-  const e = t.errors;
-  const pending = await pendingChange(roundId);
-  if (!pending) return refused(e.rounds.noCorrection);
-  // Withdrawn and replaced since the page was opened: what was read is not what would be applied.
-  if (pending.id !== requestId) return refused(e.rounds.correctionChanged);
-  if (pending.entered_by === actorId) return { ok: false, error: e.rounds.sameUser, reason: "sameUser" };
-  if (pending.kind === "cancel") return { ok: true, pending, target: "void" };
-  const round = await roundState(roundId);
-  const lotto = round && (await getLotto(round.lotto_id));
-  const first = json.parse<RoundResult | null>(pending.result, null);
-  if (!lotto || !first) return refused(e.rounds.noCorrection);
-  const derived = deriveResult(lotto.format, input ?? {}, e.result);
+/** What the round would become: a new result, which must differ from the current one, or void. */
+async function targetOf(round: RoundState, change: Change): Promise<{ ok: true; target: RoundResult | "void" } | Refusal> {
+  if (change.kind === "cancel") return { ok: true, target: "void" };
+  const e = await errorsT();
+  const lotto = await getLotto(round.lotto_id);
+  if (!lotto) return refused(e.rounds.lottoNotFound);
+  const derived = deriveResult(lotto.format, change.input, e.result);
   if (!derived.ok) return refused(derived.error);
-  const fields = differingFields(lotto.format, first, derived.result);
-  if (fields.length) {
-    await audit(actorId, "round.result.mismatch", `round:${roundId}`, { fields }, now);
-    return { ok: false, error: e.rounds.mismatch, reason: "mismatch", fields };
-  }
-  return { ok: true, pending, target: first };
+  const current = json.parse<RoundResult | null>(round.result, null);
+  if (current && differingFields(lotto.format, current, derived.result).length === 0) return refused(e.rounds.sameResult);
+  return { ok: true, target: derived.result };
 }
 
 type BillRow = {
@@ -183,19 +131,13 @@ const walletsOf = async (userId: number, lock: boolean): Promise<Wallets> => {
 
 const total = (lines: Line[]) => lines.reduce((s, l) => s + l.amount, 0);
 
-/** Compare without applying, and show who gains, who pays back and who cannot. */
-export async function checkCorrection(
-  roundId: number,
-  requestId: number,
-  input: ResultInput | null,
-  actorId: number,
-  now = Date.now(),
-): Promise<{ ok: true; preview: CorrectionPreview } | Refusal> {
-  const second = await approval(roundId, requestId, input, actorId, now);
-  if (!second.ok) return second;
+/** Show who gains, who pays back and who cannot. Writes nothing. */
+export async function previewCorrection(roundId: number, change: Change): Promise<{ ok: true; preview: CorrectionPreview } | Refusal> {
   const base = await correctable(roundId, await errorsT());
   if (!base.ok) return base.refusal;
-  const { members } = await planChange(roundId, second.target, base.rewards);
+  const next = await targetOf(base.round, change);
+  if (!next.ok) return next;
+  const { members } = await planChange(roundId, next.target, base.rewards);
   const changed = [...members].filter(([, p]) => p.lines.length > 0);
   const names = changed.length
     ? new Map((await q<{ id: number; name: string }>("SELECT id, name FROM users WHERE id IN (?)", changed.map(([id]) => id))).map((u) => [u.id, u.name]))
@@ -208,7 +150,7 @@ export async function checkCorrection(
   rows.sort((a, b) => b.shortfall - a.shortfall || a.change - b.change);
   return {
     ok: true,
-    preview: { members: rows, change: rows.reduce((s, r) => s + r.change, 0), shortfall: rows.reduce((s, r) => s + r.shortfall, 0) },
+    preview: { basis: base.basis, members: rows, change: rows.reduce((s, r) => s + r.change, 0), shortfall: rows.reduce((s, r) => s + r.shortfall, 0) },
   };
 }
 
@@ -217,64 +159,64 @@ export interface ApplyHooks {
   onMember?: (n: number) => void;
 }
 
-/** Second person approves: the round takes its new state and the money is adjusted. */
-export async function confirmCorrection(
+/** The round takes its new state, with the reason recorded, and the money is adjusted. `basis` comes from the preview. */
+export async function correctResult(
   roundId: number,
-  requestId: number,
-  input: ResultInput | null,
+  change: Change,
+  reason: string,
+  basis: number,
   actorId: number,
   now = Date.now(),
   hooks: ApplyHooks = {},
 ): Promise<{ ok: true } | Refusal> {
   const e = await errorsT();
+  const why = reason.trim().slice(0, 255);
+  if (why.length < 3) return refused(e.rounds.reasonRequired);
   const outcome = await tx(async (): Promise<{ ok: true } | Refusal> => {
-    // The round lock first: of two approvals only one still finds the request waiting.
+    // The round lock first: of two submissions only one still finds the payout it previewed.
     const base = await correctable(roundId, e, true);
     if (!base.ok) return base.refusal;
-    const second = await approval(roundId, requestId, input, actorId, now);
-    if (!second.ok) return second;
-    const { pending, target } = second;
-    await run("UPDATE round_results SET status = 'superseded' WHERE round_id = ? AND status = 'confirmed'", roundId);
-    await run("UPDATE round_results SET status = 'confirmed', confirmed_by = ?, confirmed_at = ? WHERE id = ?", actorId, now, pending.id);
+    // Corrected since the preview: what was read is not what would be applied.
+    if (base.basis !== basis) return refused(e.rounds.correctionChanged);
+    const next = await targetOf(base.round, change);
+    if (!next.ok) return next;
+    const { target } = next;
+    const result = target === "void" ? null : json.str(target);
+    // Replaces the result in force, and any request left waiting by the old two-person check.
+    await run("UPDATE round_results SET status = 'superseded' WHERE round_id = ? AND status IN ('confirmed','pending')", roundId);
+    const entry = (
+      await run(
+        "INSERT INTO round_results (round_id, kind, result, status, entered_by, entered_at, confirmed_by, confirmed_at, reason) VALUES (?, ?, ?, 'confirmed', ?, ?, ?, ?, ?)",
+        roundId,
+        change.kind,
+        result,
+        actorId,
+        now,
+        actorId,
+        now,
+        why,
+      )
+    ).lastId;
     if (target === "void") {
       await run("UPDATE rounds SET status = 'cancelled', resulted_at = ?, resulted_by = ?, settled_at = NULL WHERE id = ?", now, actorId, roundId);
     } else {
-      await run("UPDATE rounds SET result = ?, resulted_at = ?, resulted_by = ?, settled_at = NULL WHERE id = ?", json.str(target), now, actorId, roundId);
+      await run("UPDATE rounds SET result = ?, resulted_at = ?, resulted_by = ?, settled_at = NULL WHERE id = ?", result, now, actorId, roundId);
     }
     await run(
       "INSERT INTO settlement_runs (round_id, round_result_id, kind, rewards, created_at) VALUES (?, ?, ?, ?, ?)",
       roundId,
-      pending.id,
+      entry,
       target === "void" ? "void" : "correction",
       json.str(base.rewards),
       now,
     );
-    await audit(
-      actorId,
-      "round.correction.confirm",
-      `round:${roundId}`,
-      { requestedBy: pending.entered_by, reason: pending.reason, result: target === "void" ? null : target },
-      now,
-    );
+    await audit(actorId, "round.correction.confirm", `round:${roundId}`, { reason: why, result: target === "void" ? null : target }, now);
     return { ok: true };
   });
   if (!outcome.ok) return outcome;
   invalidateViews(roundId);
   await applyCorrection(roundId, now, hooks);
   return outcome;
-}
-
-export async function rejectCorrection(roundId: number, requestId: number, actorId: number, now = Date.now()): Promise<{ ok: true } | Refusal> {
-  const e = await errorsT();
-  return tx(async (): Promise<{ ok: true } | Refusal> => {
-    await roundState(roundId, true);
-    const pending = await pendingChange(roundId);
-    if (!pending) return refused(e.rounds.noCorrection);
-    if (pending.id !== requestId) return refused(e.rounds.correctionChanged);
-    await run("UPDATE round_results SET status = 'rejected', confirmed_by = ?, confirmed_at = ? WHERE id = ?", actorId, now, pending.id);
-    await audit(actorId, "round.correction.reject", `round:${roundId}`, { requestedBy: pending.entered_by }, now);
-    return { ok: true };
-  });
 }
 
 /** Pay out the differences of a confirmed correction. Safe to call again after a crash. */

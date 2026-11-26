@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { ConfirmResult } from "@/components/admin/confirm-result";
 import { CorrectionPanel } from "@/components/admin/correction-panel";
 import { ApplyConfigButton, CancelRoundButton, CloseRoundButton, ExposurePanel, ResultForm } from "@/components/admin/round-tools";
 import { Figure, PHASE_TONE } from "@/components/admin/ui";
@@ -49,7 +48,7 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
         actions={
           <span className="flex flex-wrap gap-2">
             {data.canApplyConfig && <ApplyConfigButton roundId={round.id} round={`${lotto.name} ${round.label}`} />}
-            {data.canCancel && (round.phase === "open" || round.phase === "closed" || round.phase === "confirming") && (
+            {data.canCancel && (round.phase === "open" || round.phase === "closed") && (
               <>
                 {round.phase === "open" && <CloseRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />}
                 <CancelRoundButton roundId={round.id} round={`${lotto.name} ${round.label}`} />
@@ -104,8 +103,6 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
                 <ResultDigits format={lotto.format} result={round.result} />
                 {round.resultedAt && <p className="mt-3 text-xs text-ink-3">{fmt(rd.resultedAt, { time: formatDateTime(round.resultedAt, lang) })}</p>}
               </>
-            ) : data.pending ? (
-              <ConfirmResult roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} {...data.pending} canConfirm={data.canConfirm} canEnter={data.canResult} />
             ) : round.phase === "closed" ? (
               data.canResult ? (
                 <ResultForm roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} />
@@ -121,9 +118,9 @@ async function RoundBody({ params }: Pick<PageProps<"/[lang]/rounds/[roundId]">,
               </p>
             )}
           </Card>
-          {data.correction && (
+          {data.canCorrect && (
             <Card className="flex flex-col p-5">
-              <CorrectionPanel roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} pending={data.correction.pending} />
+              <CorrectionPanel roundId={round.id} format={lotto.format} round={`${lotto.name} ${round.label}`} />
             </Card>
           )}
         </aside>

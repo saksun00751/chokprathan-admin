@@ -25,7 +25,7 @@ type Wallets = { balance: number; cashback: number; affiliate: number };
 export async function settlePending(roundId: number, now = Date.now()): Promise<{ bills: number; items: number }> {
   const round = await q1<{ status: string; result: string | null }>("SELECT status, result FROM rounds WHERE id = ?", roundId);
   if (!round) throw new Error(`round ${roundId} not found`);
-  // Anything else (no result yet, or one waiting for a second person) must never be paid or refunded.
+  // Anything else (no result yet) must never be paid or refunded.
   if (round.status !== "resulted" && round.status !== "cancelled") throw new Error(`round ${roundId} has no result`);
   const result = round.status === "resulted" ? json.parse<RoundResult | null>(round.result, null) : null;
   if (round.status === "resulted" && !result) throw new Error(`round ${roundId} has no result`);

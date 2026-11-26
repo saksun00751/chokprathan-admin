@@ -6,7 +6,6 @@ export const PERMISSIONS = [
 
   { id: "rounds.view", group: "lotto" },
   { id: "rounds.result", group: "lotto" },
-  { id: "rounds.confirm", group: "lotto" },
   { id: "rounds.correct", group: "lotto" },
   { id: "rounds.cancel", group: "lotto" },
   { id: "risk.manage", group: "lotto" },
@@ -66,7 +65,8 @@ export interface Rank {
 /** Whoever holds `actor` may hand out `target` only when they hold every one of those permissions. */
 export function canGrant(actor: readonly string[], target: readonly string[]): boolean {
   if (actor.includes(ALL)) return true;
-  return target.every((p) => p !== ALL && actor.includes(p));
+  // A role may still store a permission that was since removed; it grants nothing, so it blocks nothing.
+  return target.every((p) => p !== ALL && (actor.includes(p) || !isPermission(p)));
 }
 
 /**
@@ -112,7 +112,7 @@ export const DEFAULT_ROLES: { name: string; description: string; permissions: st
   {
     name: "ดูแลหวย",
     description: "กรอกผล ดูยอดแทงรายเลข และอั้นเลข",
-    permissions: ["dashboard.view", "rounds.view", "rounds.result", "rounds.confirm", "risk.manage"],
+    permissions: ["dashboard.view", "rounds.view", "rounds.result", "risk.manage"],
   },
   {
     name: "ซัพพอร์ต",

@@ -267,7 +267,7 @@ export const people: typeof th = {
       "package.offer": "ပက်ကေ့ဂျ်သုံးမည့် ထီကို သတ်မှတ်သည်",
       "round.config": "ထီကြိမ်တွင် ဆက်တင်အသစ် သုံးသည်",
       "round.correction.request": "ရလဒ်ပြင်ရန် တောင်းဆိုသည်",
-      "round.correction.confirm": "ရလဒ်ပြင်ဆင်မှုကို အတည်ပြုသည်",
+      "round.correction.confirm": "ရလဒ်ကို ပြင်ဆင်သည်",
       "round.correction.reject": "ပြင်ဆင်ရန် တောင်းဆိုချက်ကို ပယ်သည်",
       "round.cancel": "ထီကြိမ် ပယ်ဖျက်ခဲ့",
       "round.reopen": "ပယ်ဖျက်ထားသော ထီကြိမ်ကို ပြန်ဖွင့်ခဲ့",

@@ -112,40 +112,20 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
 /** A draw this long after its draw time with no confirmed result is marked late. */
 const LATE_AFTER_MS = 30 * 60_000;
 
-/** The two result queues: rounds to type, and typed results waiting for a second person. */
+/** Closed rounds still without a result. */
 export async function getAwaitingResults() {
   const { lang, t } = await getI18n();
-  const signedIn = await getEmployee();
-  // Either permission opens the page; each queue's actions check their own.
-  const opening = (["rounds.result", "rounds.confirm", "rounds.correct"] as const).find((p) => signedIn && can(signedIn, p)) ?? "rounds.result";
-  const viewer = await requireEmployee(opening);
+  await requireEmployee("rounds.result");
   await io();
   const now = Date.now();
-  const canEnter = can(viewer, "rounds.result");
-  const [changes, rows, waiting, lottos] = await Promise.all([
-    can(viewer, "rounds.correct")
-      ? q<RoundRow & { bills: number }>(
-          `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status IN ('won','lost')) AS bills
-           FROM rounds r JOIN round_results p ON p.round_id = r.id AND p.status = 'pending' AND p.kind IN ('correction','cancel')
-           ORDER BY p.entered_at LIMIT 50`,
-        )
-      : Promise.resolve([]),
-    canEnter
-      ? q<RoundRow & { bills: number }>(
-          `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
-           FROM rounds r JOIN lottos l ON l.id = r.lotto_id
-           WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL}
-           ORDER BY r.closes_at LIMIT 100`,
-          now,
-        )
-      : Promise.resolve([]),
-    // The typed result itself is never selected: the second person must not see it.
-    q<RoundRow & { bills: number; entered_by: number | null; entered_at: number; entered_name: string | null }>(
-      `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills,
-              p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
-       FROM rounds r JOIN round_results p ON p.round_id = r.id AND p.status = 'pending'
-       LEFT JOIN employees e ON e.id = p.entered_by
-       WHERE r.status = 'pending_confirm' ORDER BY r.closes_at LIMIT 100`,
+  const [rows, lottos] = await Promise.all([
+    q<RoundRow & { bills: number }>(
+      // 'pending_confirm' is only left by the old two-person check; it is typed again like any other.
+      `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
+       FROM rounds r JOIN lottos l ON l.id = r.lotto_id
+       WHERE r.status IN ('scheduled','pending_confirm') AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL}
+       ORDER BY r.closes_at LIMIT 100`,
+      now,
     ),
     listLottos({ includeDisabled: true }),
   ]);
@@ -167,16 +147,7 @@ export async function getAwaitingResults() {
       bills: row.bills,
     };
   };
-  return {
-    serverNow: now,
-    canConfirm: can(viewer, "rounds.confirm"),
-    rounds: rows.flatMap((row) => view(row) ?? []),
-    corrections: changes.flatMap((row) => view(row) ?? []),
-    pending: waiting.flatMap((row) => {
-      const v = view(row);
-      return v ? [{ ...v, enteredBy: row.entered_name ?? "-", enteredAt: row.entered_at, mine: row.entered_by === viewer.id }] : [];
-    }),
-  };
+  return { serverNow: now, rounds: rows.flatMap((row) => view(row) ?? []) };
 }
 
 export async function getAdminRound(roundId: number) {
@@ -189,26 +160,8 @@ export async function getAdminRound(roundId: number) {
   if (!round) return null;
   const lotto = (await getLotto(round.lottoId))!;
   const canCorrect = can(viewer, "rounds.correct");
-  const [change, lastRun, waiting, totals, liability, exposure, manual] = await Promise.all([
-    // A correction waiting for approval. The corrected digits are never selected.
-    canCorrect
-      ? q1<{ id: number; kind: "correction" | "cancel"; reason: string | null; entered_by: number | null; entered_at: number; entered_name: string | null }>(
-          `SELECT p.id, p.kind, p.reason, p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
-           FROM round_results p LEFT JOIN employees e ON e.id = p.entered_by
-           WHERE p.round_id = ? AND p.status = 'pending' AND p.kind IN ('correction','cancel') ORDER BY p.id DESC LIMIT 1`,
-          roundId,
-        )
-      : Promise.resolve(undefined),
+  const [lastRun, totals, liability, exposure, manual] = await Promise.all([
     q1<{ status: string }>("SELECT status FROM settlement_runs WHERE round_id = ? ORDER BY id DESC LIMIT 1", roundId),
-    // Who typed it and when, never the digits.
-    round.status === "pending_confirm"
-      ? q1<{ entered_by: number | null; entered_at: number; entered_name: string | null }>(
-          `SELECT p.entered_by, p.entered_at, COALESCE(NULLIF(e.name, ''), e.username) AS entered_name
-           FROM round_results p LEFT JOIN employees e ON e.id = p.entered_by
-           WHERE p.round_id = ? AND p.status = 'pending' ORDER BY p.id DESC LIMIT 1`,
-          roundId,
-        )
-      : Promise.resolve(undefined),
     roundTotals(roundId),
     q<{ bet_type: string; max: number; stake: number }>(
       "SELECT bet_type, MAX(potential) AS max, SUM(total_stake) AS stake FROM exposures WHERE round_id = ? AND total_stake > 0 GROUP BY bet_type",
@@ -222,25 +175,9 @@ export async function getAdminRound(roundId: number) {
     canResult: can(viewer, "rounds.result"),
     // Only a draw that already has bills keeps old prices; the others follow the settings by themselves.
     canApplyConfig: can(viewer, "lottos.manage") && round.status === "scheduled" && now < round.closesAt && (await roundHasBills(round.id)),
-    // Only a draw that is resulted and fully paid can be asked to change.
-    correction:
-      canCorrect && round.status === "resulted" && (change !== undefined || (round.settledAt !== null && lastRun?.status === "done"))
-        ? {
-            pending: change
-              ? {
-                  id: change.id,
-                  kind: change.kind,
-                  reason: change.reason ?? "",
-                  requestedBy: change.entered_name ?? "-",
-                  requestedAt: change.entered_at,
-                  mine: change.entered_by === viewer.id,
-                }
-              : null,
-          }
-        : null,
+    // Only a draw that is resulted and fully paid can be changed.
+    canCorrect: canCorrect && round.status === "resulted" && round.settledAt !== null && lastRun?.status === "done",
     mismatch: lastRun?.status === "mismatch",
-    canConfirm: can(viewer, "rounds.confirm"),
-    pending: waiting ? { enteredBy: waiting.entered_name ?? "-", enteredAt: waiting.entered_at, mine: waiting.entered_by === viewer.id } : null,
     canCancel: can(viewer, "rounds.cancel"),
     canLimit: can(viewer, "risk.manage"),
     round: {

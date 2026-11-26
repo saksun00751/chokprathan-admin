@@ -265,7 +265,7 @@ export const people = {
       "package.offer": "ตั้งหวยที่ใช้แพ็กเกจ",
       "round.config": "ใช้ค่าใหม่กับงวด",
       "round.correction.request": "ขอแก้ผลรางวัล",
-      "round.correction.confirm": "อนุมัติแก้ผลรางวัล",
+      "round.correction.confirm": "แก้ผลรางวัล",
       "round.correction.reject": "ปฏิเสธคำขอแก้ผล",
       "round.cancel": "ยกเลิกงวด",
       "round.reopen": "เปิดงวดที่ยกเลิกกลับมา",

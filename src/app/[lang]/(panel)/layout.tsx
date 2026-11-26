@@ -51,18 +51,16 @@ async function navState(): Promise<NavState | null> {
     .map((i) => i.href);
   const wantFinance = can(viewer, "finance.view");
   const wantResults = can(viewer, "rounds.result");
-  const wantConfirm = can(viewer, "rounds.confirm");
-  // The results badge adds both queues: rounds to type and results to confirm.
-  const toType = wantResults ? `(SELECT COUNT(*) FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL})` : "0";
-  const toConfirm = wantConfirm ? "(SELECT COUNT(*) FROM rounds WHERE status = 'pending_confirm')" : "0";
-  const wantCorrect = can(viewer, "rounds.correct");
-  const toCorrect = wantCorrect ? "(SELECT COUNT(*) FROM round_results WHERE status = 'pending' AND kind IN ('correction','cancel'))" : "0";
+  // The results badge: closed rounds waiting for a result. 'pending_confirm' is left by the old two-person check.
+  const toType = wantResults
+    ? `(SELECT COUNT(*) FROM rounds r JOIN lottos l ON l.id = r.lotto_id WHERE r.status IN ('scheduled','pending_confirm') AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL})`
+    : "0";
   const counts =
-    wantFinance || wantResults || wantConfirm || wantCorrect
+    wantFinance || wantResults
       ? await q1<{ f: number; r: number }>(
           `SELECT
              ${wantFinance ? "(SELECT COUNT(*) FROM deposits WHERE status = 'pending') + (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending')" : "0"} AS f,
-             ${toType} + ${toConfirm} + ${toCorrect} AS r`,
+             ${toType} AS r`,
           ...(wantResults ? [Date.now()] : []),
         )
       : undefined;

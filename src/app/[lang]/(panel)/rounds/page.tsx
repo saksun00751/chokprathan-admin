@@ -12,7 +12,7 @@ import type { RoundPhase } from "@/server/services/rounds";
 
 export const generateMetadata = () => titled((t) => t.admin.ops.rounds.title);
 
-const PHASES: (RoundPhase | "all")[] = ["all", "open", "closed", "confirming", "resulted", "upcoming", "cancelled"];
+const PHASES: (RoundPhase | "all")[] = ["all", "open", "closed", "resulted", "upcoming", "cancelled"];
 
 export default async function AdminRoundsPage({ searchParams }: PageProps<"/[lang]/rounds">) {
   const r = (await getI18n()).t.admin.ops.rounds;

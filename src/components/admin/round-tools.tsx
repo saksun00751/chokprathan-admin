@@ -6,12 +6,12 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { formatBaht, formatRate } from "@/core/rules/money";
 import type { BetTypeCode, ManualLimit, ResultFormat } from "@/core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
-import { Digits, EMPTY_RESULT, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
+import { Digits, EMPTY_RESULT, resultComplete, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
 import { Button } from "@/components/ui/button";
 import { RateChip } from "@/components/ui/rate-chip";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { applyRoundConfigAction, cancelRoundAction, closeRoundAction, enterResultAction, setManualLimitAction } from "@/server/actions/admin";
+import { applyRoundConfigAction, cancelRoundAction, closeRoundAction, previewResultAction, setManualLimitAction, submitResultAction } from "@/server/actions/admin";
 import type { ExposureRow } from "@/server/services/risk";
 
 const digitInput =
@@ -20,6 +20,7 @@ const digitInput =
 export function ResultForm({ roundId, format, round }: { roundId: number; format: ResultFormat; /** lotto and round, e.g. "Lao 16 Nov" */ round: string }) {
   const { t } = useI18n();
   const rf = t.admin.ops.resultForm;
+  const c = t.admin.ops.confirmResult;
   const k = t.admin.shell.confirm;
   const ask = useConfirm();
   const toast = useToast();
@@ -38,24 +39,31 @@ export function ResultForm({ roundId, format, round }: { roundId: number; format
   return (
     <form
       className="flex flex-col gap-3"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
         const input = resultInput(format, v);
-        const answer = await ask({
-          title: k.saveResult,
-          tone: "danger",
-          details: [
-            [k.round, round],
-            ...resultPairs(format, v, rf).map(([label, digits]): [string, ReactNode] => [label, <Digits key={label}>{digits}</Digits>]),
-          ],
-          note: k.saveResultNote,
-          confirmLabel: rf.submit,
-        });
-        if (!answer.ok) return;
         start(async () => {
-          const r = await enterResultAction(roundId, input);
-          if (r.ok) toast.success(r.message ?? rf.saved);
-          else toast.error(r.error);
+          const checked = await previewResultAction(roundId, input);
+          if (!checked.ok) return void toast.error(checked.error);
+          const { winners, bills, payout } = checked.data;
+          const answer = await ask({
+            title: c.confirmTitle,
+            tone: "danger",
+            // What is about to be paid, digits and money, in front of whoever presses the button.
+            details: [
+              [k.round, round],
+              ...resultPairs(format, v, rf).map(([label, digits]): [string, ReactNode] => [label, <Digits key={label}>{digits}</Digits>]),
+            ],
+            note: `${fmt(c.preview, { winners: formatNumber(winners), bills: formatNumber(bills), payout: formatBaht(payout, { decimals: "auto" }) })} · ${c.confirmNote}`,
+            confirmLabel: c.submit,
+          });
+          if (!answer.ok) return;
+          // A new transition, so the button stays busy while the money moves.
+          start(async () => {
+            const r = await submitResultAction(roundId, input);
+            if (r.ok) toast.success(r.message ?? "");
+            else toast.error(r.error);
+          });
         });
       }}
     >
@@ -78,8 +86,8 @@ export function ResultForm({ roundId, format, round }: { roundId: number; format
           {field("bottom2", rf.bottom2, 2)}
         </div>
       )}
-      <Button type="submit" loading={pending}>
-        {rf.submit}
+      <Button type="submit" loading={pending} disabled={!resultComplete(format, v)}>
+        {c.submit}
       </Button>
     </form>
   );

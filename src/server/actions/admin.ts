@@ -40,9 +40,9 @@ import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/se
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
 import { writeOffDebt } from "@/server/services/debts";
-import { checkCorrection, confirmCorrection, rejectCorrection, requestCorrection, type CorrectionPreview } from "@/server/services/correction";
+import { correctResult, previewCorrection, type Change, type CorrectionPreview } from "@/server/services/correction";
 import { savePackage, setLottoPackage, type Overrides, type PackageInput } from "@/server/services/packages";
-import { checkResult, confirmResult, enterResult, rejectResult, type PayoutPreview, type ResultField } from "@/server/services/results";
+import { previewResult, submitResult, type PayoutPreview } from "@/server/services/results";
 import { cancelRound, closeRoundNow, reconcileRounds, createRound } from "@/server/services/rounds";
 import { applyConfigToRound, refreshRoundConfigs } from "@/server/services/round-configs";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
@@ -88,50 +88,22 @@ function flat(obj: Record<string, unknown>, prefix = ""): Record<string, unknown
 
 /* ---------- rounds ---------- */
 
-/** First person: type a result. Nothing is paid until someone else confirms it. */
-export async function enterResultAction(roundId: number, input: ResultInput): Promise<ActionResult> {
+/** What paying this result would do. Writes nothing. */
+export async function previewResultAction(roundId: number, input: ResultInput): Promise<ActionResult<PayoutPreview>> {
   const g = await gate("rounds.result");
   if ("refusal" in g) return g.refusal;
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await enterResult(roundId, input, g.viewer.id);
-  return r.ok ? done(g.e.admin.resultEntered) : { ok: false, error: r.error };
+  const r = await previewResult(roundId, input);
+  return r.ok ? { ok: true, data: r.preview } : { ok: false, error: r.error };
 }
 
-export type ResultCheck = { match: true; preview: PayoutPreview } | { match: false; fields: ResultField[] };
-
-/** Second person: compare their typing with the waiting result, and preview the payout. Pays nothing. */
-export async function checkResultAction(roundId: number, input: ResultInput): Promise<ActionResult<ResultCheck>> {
-  const g = await gate("rounds.confirm");
-  if ("refusal" in g) return g.refusal;
-  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await checkResult(roundId, input, g.viewer.id);
-  if (r.ok) return { ok: true, data: { match: true, preview: r.preview } };
-  return r.reason === "mismatch" ? { ok: true, data: { match: false, fields: r.fields } } : { ok: false, error: r.error };
-}
-
-export async function confirmResultAction(roundId: number, input: ResultInput): Promise<ActionResult> {
-  const g = await gate("rounds.confirm");
-  if ("refusal" in g) return g.refusal;
-  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await confirmResult(roundId, input, g.viewer.id);
-  return r.ok ? done(g.e.admin.resultConfirmed) : { ok: false, error: r.error };
-}
-
-export async function rejectResultAction(roundId: number): Promise<ActionResult> {
-  const g = await gate("rounds.confirm");
-  if ("refusal" in g) return g.refusal;
-  if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await rejectResult(roundId, g.viewer.id, { ownOnly: false });
-  return r.ok ? done(g.e.admin.resultRejected) : { ok: false, error: r.error };
-}
-
-/** Whoever typed a result may take it back. */
-export async function withdrawResultAction(roundId: number): Promise<ActionResult> {
+/** Store the result and pay it. */
+export async function submitResultAction(roundId: number, input: ResultInput): Promise<ActionResult> {
   const g = await gate("rounds.result");
   if ("refusal" in g) return g.refusal;
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await rejectResult(roundId, g.viewer.id, { ownOnly: true });
-  return r.ok ? done(g.e.admin.resultWithdrawn) : { ok: false, error: r.error };
+  const r = await submitResult(roundId, input, g.viewer.id);
+  return r.ok ? done(g.e.admin.resultPaid) : { ok: false, error: r.error };
 }
 
 export async function writeOffDebtAction(debtId: number, reason: string): Promise<ActionResult> {
@@ -143,41 +115,28 @@ export async function writeOffDebtAction(debtId: number, reason: string): Promis
   return { ok: false, error: { notFound: g.e.admin.debtMissing, nothing: g.e.admin.debtNothing, reason: g.e.admin.debtReason }[r.error] };
 }
 
-/** First person: ask to correct a paid draw. Nothing moves until someone else approves. */
-export async function requestCorrectionAction(roundId: number, change: { kind: "correction"; input: ResultInput } | { kind: "cancel" }, reason: string): Promise<ActionResult> {
+/** The change as sent by the form, or null when it is neither kind. */
+const changeOf = (change: Change): Change | null =>
+  change?.kind === "cancel" ? { kind: "cancel" } : change?.kind === "correction" ? { kind: "correction", input: change.input ?? {} } : null;
+
+export async function previewCorrectionAction(roundId: number, change: Change): Promise<ActionResult<CorrectionPreview>> {
   const g = await gate("rounds.correct");
   if ("refusal" in g) return g.refusal;
   if (!isId(roundId)) return { ok: false, error: g.e.rounds.notFound };
-  if (change?.kind !== "correction" && change?.kind !== "cancel") return { ok: false, error: g.e.generic.invalid };
-  const r = await requestCorrection(roundId, change.kind === "cancel" ? { kind: "cancel" } : { kind: "correction", input: change.input ?? {} }, String(reason ?? ""), g.viewer.id);
-  return r.ok ? done(g.e.admin.correctionRequested) : { ok: false, error: r.error };
+  const wanted = changeOf(change);
+  if (!wanted) return { ok: false, error: g.e.generic.invalid };
+  const r = await previewCorrection(roundId, wanted);
+  return r.ok ? { ok: true, data: r.preview } : { ok: false, error: r.error };
 }
 
-export type CorrectionCheck = { match: true; preview: CorrectionPreview } | { match: false; fields: ResultField[] };
-
-export async function checkCorrectionAction(roundId: number, requestId: number, input: ResultInput | null): Promise<ActionResult<CorrectionCheck>> {
+export async function correctResultAction(roundId: number, change: Change, reason: string, basis: number): Promise<ActionResult> {
   const g = await gate("rounds.correct");
   if ("refusal" in g) return g.refusal;
-  if (!isId(roundId) || !isId(requestId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await checkCorrection(roundId, requestId, input, g.viewer.id);
-  if (r.ok) return { ok: true, data: { match: true, preview: r.preview } };
-  return r.reason === "mismatch" ? { ok: true, data: { match: false, fields: r.fields } } : { ok: false, error: r.error };
-}
-
-export async function confirmCorrectionAction(roundId: number, requestId: number, input: ResultInput | null): Promise<ActionResult> {
-  const g = await gate("rounds.correct");
-  if ("refusal" in g) return g.refusal;
-  if (!isId(roundId) || !isId(requestId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await confirmCorrection(roundId, requestId, input, g.viewer.id);
+  if (!isId(roundId) || !isId(basis)) return { ok: false, error: g.e.rounds.notFound };
+  const wanted = changeOf(change);
+  if (!wanted) return { ok: false, error: g.e.generic.invalid };
+  const r = await correctResult(roundId, wanted, String(reason ?? ""), basis, g.viewer.id);
   return r.ok ? done(g.e.admin.correctionDone) : { ok: false, error: r.error };
-}
-
-export async function rejectCorrectionAction(roundId: number, requestId: number): Promise<ActionResult> {
-  const g = await gate("rounds.correct");
-  if ("refusal" in g) return g.refusal;
-  if (!isId(roundId) || !isId(requestId)) return { ok: false, error: g.e.rounds.notFound };
-  const r = await rejectCorrection(roundId, requestId, g.viewer.id);
-  return r.ok ? done(g.e.admin.correctionRejected) : { ok: false, error: r.error };
 }
 
 /** Rate and discount per bet type as sent by the form; anything else is dropped. */
@@ -230,20 +189,46 @@ export async function closeRoundAction(roundId: number): Promise<ActionResult> {
   return r.ok ? done(g.e.admin.roundClosed) : { ok: false, error: r.error === "notFound" ? g.e.rounds.notFound : g.e.rounds.closeNotOpen };
 }
 
-/** Enter results for many rounds at once (end of the day for stock lotteries). Each round settles on its own. */
-export async function enterResultsBulkAction(
-  items: { roundId: number; input: ResultInput }[],
-): Promise<ActionResult<{ saved: number; errors: { roundId: number; error: string }[] }>> {
+type BulkItem = { roundId: number; input: ResultInput };
+type BulkError = { roundId: number; error: string };
+const isBulk = (items: unknown): items is BulkItem[] => Array.isArray(items) && items.length > 0 && items.length <= 60;
+
+/** What each of these results would pay. Writes nothing. */
+export async function previewResultsBulkAction(
+  items: BulkItem[],
+): Promise<ActionResult<{ previews: ({ roundId: number } & PayoutPreview)[]; errors: BulkError[] }>> {
   const g = await gate("rounds.result");
   if ("refusal" in g) return g.refusal;
-  if (!Array.isArray(items) || items.length === 0 || items.length > 60) return { ok: false, error: g.e.admin.pickRounds };
-  let saved = 0;
-  const errors: { roundId: number; error: string }[] = [];
+  if (!isBulk(items)) return { ok: false, error: g.e.admin.pickRounds };
+  const previews: ({ roundId: number } & PayoutPreview)[] = [];
+  const errors: BulkError[] = [];
   for (const item of items) {
     if (!isId(item?.roundId)) continue;
-    const r = await enterResult(item.roundId, item.input ?? {}, g.viewer.id);
-    if (r.ok) saved++;
+    const r = await previewResult(item.roundId, item.input ?? {});
+    if (r.ok) previews.push({ roundId: item.roundId, ...r.preview });
     else errors.push({ roundId: item.roundId, error: r.error });
+  }
+  return { ok: true, data: { previews, errors } };
+}
+
+/** Enter results for many rounds at once (end of the day for stock lotteries). Each round settles on its own. */
+export async function submitResultsBulkAction(items: BulkItem[]): Promise<ActionResult<{ saved: number; errors: BulkError[] }>> {
+  const g = await gate("rounds.result");
+  if ("refusal" in g) return g.refusal;
+  if (!isBulk(items)) return { ok: false, error: g.e.admin.pickRounds };
+  let saved = 0;
+  const errors: BulkError[] = [];
+  for (const item of items) {
+    if (!isId(item?.roundId)) continue;
+    try {
+      const r = await submitResult(item.roundId, item.input ?? {}, g.viewer.id);
+      if (r.ok) saved++;
+      else errors.push({ roundId: item.roundId, error: r.error });
+    } catch (error) {
+      // The other rounds still go through; the scheduler finishes a payout that was interrupted.
+      console.error(`[results] bulk payout failed for round ${item.roundId}:`, error instanceof Error ? error.message : error);
+      errors.push({ roundId: item.roundId, error: g.e.rounds.payInterrupted });
+    }
   }
   refresh();
   return {

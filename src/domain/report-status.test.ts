@@ -6,7 +6,7 @@ describe("a round's status in reports", () => {
   test("has words for every stored status", () => {
     for (const status of ["scheduled", "pending_confirm", "resulted", "cancelled"]) expect(reportRoundStatus(status, th)).not.toBe(status);
   });
-  test("says a typed result is waiting for the second person", () => {
-    expect(reportRoundStatus("pending_confirm", th)).toBe(th.admin.shell.phase.confirming);
+  test("reads a result left waiting by the old two-person check as closed: it can be typed again", () => {
+    expect(reportRoundStatus("pending_confirm", th)).toBe(th.lotto.phase.closed);
   });
 });

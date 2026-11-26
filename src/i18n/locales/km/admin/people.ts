@@ -267,7 +267,7 @@ export const people: typeof th = {
       "package.offer": "បានកំណត់ឆ្នោតដែលប្រើកញ្ចប់",
       "round.config": "បានប្រើការកំណត់ថ្មីលើវគ្គ",
       "round.correction.request": "ស្នើកែលទ្ធផល",
-      "round.correction.confirm": "អនុម័តការកែលទ្ធផល",
+      "round.correction.confirm": "បានកែលទ្ធផល",
       "round.correction.reject": "បដិសេធសំណើកែ",
       "round.cancel": "បានលុបចោលវគ្គ",
       "round.reopen": "បានបើកវគ្គដែលលុបចោលឡើងវិញ",

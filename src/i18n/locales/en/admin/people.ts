@@ -267,7 +267,7 @@ export const people: typeof th = {
       "package.offer": "Set which lottery offers a package",
       "round.config": "Applied new settings to a draw",
       "round.correction.request": "Asked to correct a result",
-      "round.correction.confirm": "Approved a result correction",
+      "round.correction.confirm": "Corrected a result",
       "round.correction.reject": "Rejected a correction request",
       "round.cancel": "Cancelled draw",
       "round.reopen": "Reopened draw",

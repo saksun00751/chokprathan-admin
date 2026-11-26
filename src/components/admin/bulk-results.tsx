@@ -3,6 +3,7 @@
 import { useI18n } from "@/i18n/client";
 import { fmt, formatDateTime, formatNumber } from "@/i18n/format";
 import { useState, useTransition, type ReactNode } from "react";
+import { formatBaht } from "@/core/rules/money";
 import type { ResultFormat } from "@/core/rules/types";
 import { useConfirm } from "@/components/admin/confirm";
 import { Digits, EMPTY_RESULT, resultComplete, resultInput, resultPairs, type ResultValues } from "@/components/admin/result-summary";
@@ -10,13 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Flag } from "@/components/ui/flag";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
-import { enterResultsBulkAction } from "@/server/actions/admin";
+import { previewResultsBulkAction, submitResultsBulkAction } from "@/server/actions/admin";
 
 type Row = { id: number; lotto: string; shortName: string; flag: string | null; format: ResultFormat; label: string; closesAt: number; late: boolean; bills: number };
 const cell =
   "tnum h-10 w-full min-w-0 rounded-control border border-line-strong bg-surface px-2 text-center text-base font-semibold tracking-[0.15em] focus-visible:border-brand";
 
-/** Type the results of every waiting round, check them, then save the filled ones together. */
+/** Type the results of every waiting round, check what they pay, then pay the filled ones together. */
 export function BulkResults({ rows }: { rows: Row[] }) {
   const { lang, t } = useI18n();
   const br = t.admin.ops.results;
@@ -47,35 +48,54 @@ export function BulkResults({ rows }: { rows: Row[] }) {
 
   return (
     <form
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        if (ready.length === 0) return toast.error(br.fillOne);
-        const k = t.admin.shell.confirm;
-        const answer = await ask({
-          title: fmt(k.saveResults, { n: ready.length }),
-          tone: "danger",
-          details: ready.map((r): [string, ReactNode] => [
-            `${r.shortName} ${r.label}`,
-            <span key={r.id} className="flex flex-col gap-0.5">
-              {resultPairs(r.format, get(r.id), br).map(([label, digits]) => (
-                <span key={label} className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="text-xs font-normal text-ink-3">{label}</span>
-                  <Digits>{digits}</Digits>
-                </span>
-              ))}
-            </span>,
-          ]),
-          note: k.saveResultNote,
-          confirmLabel: fmt(br.submitN, { n: ready.length }),
-        });
-        if (!answer.ok) return;
+        if (ready.length === 0) return void toast.error(br.fillOne);
+        const c = t.admin.ops.confirmResult;
+        const items = ready.map((x) => ({ roundId: x.id, input: resultInput(x.format, get(x.id)) }));
         start(async () => {
-          const r = await enterResultsBulkAction(ready.map((x) => ({ roundId: x.id, input: resultInput(x.format, get(x.id)) })));
-          if (!r.ok) return toast.error(r.error);
-          setErrors(Object.fromEntries(r.data.errors.map((x) => [x.roundId, x.error])));
-          if (r.data.errors.length) toast.error(r.message ?? br.someFailed);
-          else toast.success(r.message ?? br.saved);
-          setValues((all) => Object.fromEntries(Object.entries(all).filter(([id]) => r.data.errors.some((x) => x.roundId === Number(id)))));
+          const checked = await previewResultsBulkAction(items);
+          if (!checked.ok) return void toast.error(checked.error);
+          const { previews, errors: refused } = checked.data;
+          setErrors(Object.fromEntries(refused.map((x) => [x.roundId, x.error])));
+          if (previews.length === 0) return void toast.error(br.someFailed);
+          const byId = new Map(previews.map((p) => [p.roundId, p]));
+          const payable = ready.filter((r) => byId.has(r.id));
+          const total = previews.reduce((s, p) => s + p.payout, 0);
+          const answer = await ask({
+            title: fmt(t.admin.shell.confirm.saveResults, { n: payable.length }),
+            tone: "danger",
+            details: payable.map((r): [string, ReactNode] => {
+              const { winners, bills, payout } = byId.get(r.id)!;
+              return [
+                `${r.shortName} ${r.label}`,
+                <span key={r.id} className="flex flex-col gap-0.5">
+                  {resultPairs(r.format, get(r.id), br).map(([label, digits]) => (
+                    <span key={label} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                      <span className="text-xs font-normal text-ink-3">{label}</span>
+                      <Digits>{digits}</Digits>
+                    </span>
+                  ))}
+                  <span className="text-xs font-normal text-ink-2">
+                    {fmt(c.preview, { winners: formatNumber(winners), bills: formatNumber(bills), payout: formatBaht(payout, { decimals: "auto" }) })}
+                  </span>
+                </span>,
+              ];
+            }),
+            note: `${fmt(br.total, { payout: formatBaht(total, { decimals: "auto" }) })} · ${c.confirmNote}`,
+            confirmLabel: fmt(br.submitN, { n: payable.length }),
+          });
+          if (!answer.ok) return;
+          start(async () => {
+            const r = await submitResultsBulkAction(items.filter((x) => byId.has(x.roundId)));
+            if (!r.ok) return void toast.error(r.error);
+            const failed = [...refused, ...r.data.errors];
+            setErrors(Object.fromEntries(failed.map((x) => [x.roundId, x.error])));
+            if (r.data.errors.length) toast.error(r.message ?? br.someFailed);
+            else toast.success(r.message ?? br.saved);
+            // Keep what is still typed for rounds that did not go through.
+            setValues((all) => Object.fromEntries(Object.entries(all).filter(([id]) => failed.some((x) => x.roundId === Number(id)))));
+          });
         });
       }}
       className="flex flex-col gap-4"

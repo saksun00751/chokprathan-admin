@@ -266,7 +266,7 @@ export const people: typeof th = {
       "package.offer": "ຕັ້ງຫວຍທີ່ໃຊ້ແພັກເກັດ",
       "round.config": "ໃຊ້ຄ່າໃໝ່ກັບງວດ",
       "round.correction.request": "ຂໍແກ້ຜົນລາງວັນ",
-      "round.correction.confirm": "ອະນຸມັດແກ້ຜົນລາງວັນ",
+      "round.correction.confirm": "ແກ້ຜົນລາງວັນ",
       "round.correction.reject": "ປະຕິເສດຄຳຂໍແກ້ຜົນ",
       "round.cancel": "ຍົກເລີກງວດ",
       "round.reopen": "ເປີດງວດທີ່ຍົກເລີກຄືນ",
