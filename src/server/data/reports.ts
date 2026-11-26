@@ -174,7 +174,7 @@ async function byRound(r: DateRange, R: ReportsDict): Promise<ReportTable> {
       return {
         closes: x.closesAt,
         lotto: lotto ? lottoShort(lotto, R.t) : "-",
-        round: roundName({ roundNo: x.roundNo, closesAt: x.closesAt }, R.lang, R.t),
+        round: roundName({ roundNo: x.roundNo, closesAt: x.closesAt, plannedClose: x.plannedClose ?? null }, R.lang, R.t),
         status: STATUS[x.status] ?? x.status,
         result: resultText(x.result),
         bills: x.bills,

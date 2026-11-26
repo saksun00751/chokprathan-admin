@@ -83,6 +83,8 @@ export interface RoundStats {
   lottoId: number;
   roundNo: number | null;
   closesAt: number;
+  /** Scheduled close of a draw closed early; absent on summaries stored before it was kept. */
+  plannedClose?: number | null;
   status: string;
   result: string | null;
   bills: number;

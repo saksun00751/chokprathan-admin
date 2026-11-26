@@ -3,7 +3,7 @@ import { bkkMs } from "chokprathan-core/rules/time";
 import { invalidate } from "@/server/cache";
 import { q1, run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
-import { closeRoundNow, ensureRounds } from "./rounds";
+import { closeRoundNow, ensureRounds, getRound, roundLabel } from "./rounds";
 
 const now = bkkMs(2026, 11, 4, 12, 0); // Wednesday
 const planned = bkkMs(2026, 11, 4, 20, 0);
@@ -27,6 +27,12 @@ describe.skipIf(!hasTestDb)("closing a round early", () => {
     expect(await closeRoundNow(id, 1, now)).toEqual({ ok: true });
     expect(await q1("SELECT closes_at, planned_close, status FROM rounds WHERE id = ?", id)).toEqual({ closes_at: now, planned_close: planned, status: "scheduled" });
     expect(await ensureRounds(now, { daysBack: 0, daysAhead: 0 })).toBe(0);
+  });
+
+  test("does not rename the draw, even when closed days before", async () => {
+    const before = roundLabel((await getRound(id))!);
+    expect(await closeRoundNow(id, 1, now - 24 * 3_600_000)).toEqual({ ok: true });
+    expect(roundLabel((await getRound(id))!)).toBe(before);
   });
 
   test("only an open round can be closed", async () => {

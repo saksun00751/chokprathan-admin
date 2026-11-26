@@ -79,8 +79,8 @@ async function usersById(ids: number[]) {
 async function liveRisk(now: number, lang: Locale, t: Dict) {
   const lottos = await listLottos({ includeDisabled: true });
   const [watch, awaiting] = await Promise.all([
-    q<{ id: number; lotto_id: number; round_no: number | null; closes_at: number; liability: number | null; stake: number | null }>(
-      `SELECT r.id, r.lotto_id, r.round_no, r.closes_at,
+    q<{ id: number; lotto_id: number; round_no: number | null; closes_at: number; planned_close: number | null; liability: number | null; stake: number | null }>(
+      `SELECT r.id, r.lotto_id, r.round_no, r.closes_at, r.planned_close,
               (SELECT MAX(potential) FROM exposures e WHERE e.round_id = r.id) AS liability,
               (SELECT SUM(total_stake) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS stake
        FROM rounds r WHERE r.status = 'scheduled' AND r.opens_at <= ? AND r.closes_at > ?
@@ -88,8 +88,8 @@ async function liveRisk(now: number, lang: Locale, t: Dict) {
       now,
       now,
     ),
-    q<{ id: number; lotto_id: number; round_no: number | null; closes_at: number }>(
-      `SELECT r.id, r.lotto_id, r.round_no, r.closes_at FROM rounds r JOIN lottos l ON l.id = r.lotto_id
+    q<{ id: number; lotto_id: number; round_no: number | null; closes_at: number; planned_close: number | null }>(
+      `SELECT r.id, r.lotto_id, r.round_no, r.closes_at, r.planned_close FROM rounds r JOIN lottos l ON l.id = r.lotto_id
        WHERE r.status = 'scheduled' AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL} ORDER BY r.closes_at LIMIT 10`,
       now,
     ),
@@ -101,7 +101,7 @@ async function liveRisk(now: number, lang: Locale, t: Dict) {
       id: w.id,
       lotto: ((l) => (l ? lottoShort(l, t) : "-"))(name(w.lotto_id)),
       flag: name(w.lotto_id)?.flag ?? null,
-      label: roundName({ roundNo: w.round_no, closesAt: w.closes_at }, lang, t),
+      label: roundName({ roundNo: w.round_no, closesAt: w.closes_at, plannedClose: w.planned_close }, lang, t),
       closesAt: w.closes_at,
       stake: w.stake ?? 0,
       liability: w.liability ?? 0,
@@ -111,7 +111,7 @@ async function liveRisk(now: number, lang: Locale, t: Dict) {
       id: a.id,
       lotto: ((l) => (l ? lottoName(l, t) : "-"))(name(a.lotto_id)),
       flag: name(a.lotto_id)?.flag ?? null,
-      label: roundName({ roundNo: a.round_no, closesAt: a.closes_at }, lang, t),
+      label: roundName({ roundNo: a.round_no, closesAt: a.closes_at, plannedClose: a.planned_close }, lang, t),
       closesAt: a.closes_at,
     })),
   };

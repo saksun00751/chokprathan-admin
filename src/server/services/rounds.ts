@@ -1,4 +1,5 @@
 import "server-only";
+import { scheduledClose } from "@/i18n/labels";
 import { settleGuesses } from "./activities";
 import { errorsT, serverI18n } from "@/i18n/server";
 import { randomInt } from "node:crypto";
@@ -25,6 +26,8 @@ export interface Round {
   dayKey: string;
   opensAt: number;
   closesAt: number;
+  /** set when the draw was closed early: its scheduled closing time */
+  plannedClose: number | null;
   drawAt: number;
   status: RoundStatus;
   result: RoundResult | null;
@@ -39,6 +42,7 @@ export interface RoundRow {
   day_key: string;
   opens_at: number;
   closes_at: number;
+  planned_close: number | null;
   draw_at: number;
   status: RoundStatus;
   result: string | null;
@@ -55,6 +59,7 @@ export function toRound(r: RoundRow): Round {
     dayKey: r.day_key,
     opensAt: r.opens_at,
     closesAt: r.closes_at,
+    plannedClose: r.planned_close ?? null,
     drawAt: r.draw_at,
     status: r.status,
     result: json.parse<RoundResult | null>(r.result, null),
@@ -72,8 +77,8 @@ export function phaseOf(r: Pick<Round, "opensAt" | "closesAt" | "status">, now: 
   return "closed";
 }
 
-export function roundLabel(r: Pick<Round, "roundNo" | "closesAt">): string {
-  return r.roundNo != null ? `รอบที่ ${r.roundNo}` : `งวด ${formatThaiDate(r.closesAt)}`;
+export function roundLabel(r: Pick<Round, "roundNo" | "closesAt" | "plannedClose">): string {
+  return r.roundNo != null ? `รอบที่ ${r.roundNo}` : `งวด ${formatThaiDate(scheduledClose(r))}`;
 }
 
 export async function getRound(id: number): Promise<Round | undefined> {

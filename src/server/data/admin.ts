@@ -351,8 +351,9 @@ export async function getMember(userId: number) {
       lotto_id: number;
       round_no: number | null;
       closes_at: number;
+      planned_close: number | null;
     }>(
-      `SELECT b.id, b.code, b.status, b.total_stake, b.total_payout, b.created_at, r.lotto_id, r.round_no, r.closes_at
+      `SELECT b.id, b.code, b.status, b.total_stake, b.total_payout, b.created_at, r.lotto_id, r.round_no, r.closes_at, r.planned_close
        FROM bills b JOIN rounds r ON r.id = b.round_id WHERE b.user_id = ? ORDER BY b.created_at DESC LIMIT 15`,
       userId,
     ),
@@ -409,7 +410,7 @@ export async function getMember(userId: number) {
       total_payout: b.total_payout,
       created_at: b.created_at,
       lotto: ((l) => (l ? lottoShort(l, t) : "-"))(lottos.find((l) => l.id === b.lotto_id)),
-      label: roundName({ roundNo: b.round_no, closesAt: b.closes_at }, lang, t),
+      label: roundName({ roundNo: b.round_no, closesAt: b.closes_at, plannedClose: b.planned_close }, lang, t),
     })),
     tx,
     upline: upline ? { ...upline, phone: view.phone(upline.phone) } : null,

@@ -211,17 +211,18 @@ export async function firstDay(): Promise<number | null> {
   return m > 0 && m < 9e15 ? dayOf(m) : null;
 }
 
-const ROUND_SQL = `SELECT rd.id, rd.lotto_id, rd.round_no, rd.closes_at, rd.status, rd.result,
+const ROUND_SQL = `SELECT rd.id, rd.lotto_id, rd.round_no, rd.closes_at, rd.planned_close, rd.status, rd.result,
          COUNT(b.id) AS bills, SUM(b.total_stake) AS stake, SUM(b.total_payout) AS payout
   FROM rounds rd LEFT JOIN bills b ON b.round_id = rd.id AND b.status IN ${LIVE}`;
-const ROUND_GROUP = "GROUP BY rd.id, rd.lotto_id, rd.round_no, rd.closes_at, rd.status, rd.result";
+const ROUND_GROUP = "GROUP BY rd.id, rd.lotto_id, rd.round_no, rd.closes_at, rd.planned_close, rd.status, rd.result";
 
-type RoundRow = { id: number; lotto_id: number; round_no: number | null; closes_at: number; status: string; result: string | null; bills: number; stake: number | null; payout: number | null };
+type RoundRow = { id: number; lotto_id: number; round_no: number | null; closes_at: number; planned_close: number | null; status: string; result: string | null; bills: number; stake: number | null; payout: number | null };
 const toRoundStats = (r: RoundRow, now: number): RoundStats => ({
   _id: num(r.id),
   lottoId: num(r.lotto_id),
   roundNo: r.round_no === null ? null : num(r.round_no),
   closesAt: num(r.closes_at),
+  plannedClose: r.planned_close === null ? null : num(r.planned_close),
   status: r.status,
   result: r.result,
   bills: num(r.bills),
