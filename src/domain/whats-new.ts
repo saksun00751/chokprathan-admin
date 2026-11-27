@@ -14,7 +14,8 @@ export type Kind = (typeof KINDS)[number];
 export type WhatsNewKey =
   | "memberLottos" | "memberNames" | "memberYiki" | "memberNoYiki"
   | "bills" | "resultHistory" | "exposure" | "transactions" | "referrals" | "whatsNew" | "groupSwitch" | "nameEditor"
-  | "resultEntry" | "menu" | "branding" | "imageCompress" | "profile" | "avatarMenu";
+  | "resultEntry" | "menu" | "branding" | "imageCompress" | "profile" | "avatarMenu"
+  | "staffPortrait" | "portraits" | "avatarConfirm" | "avatarButton";
 
 export interface WhatsNewItem {
   key: WhatsNewKey;
@@ -32,6 +33,15 @@ export interface Release {
 
 /** Newest first. */
 export const RELEASES: readonly Release[] = [
+  {
+    day: "2026-11-28",
+    items: [
+      { key: "staffPortrait", area: "admin", kind: "added", link: { href: "/staff", need: "staff.manage" } },
+      { key: "portraits", area: "admin", kind: "changed" },
+      { key: "avatarConfirm", area: "admin", kind: "changed" },
+      { key: "avatarButton", area: "admin", kind: "changed" },
+    ],
+  },
   {
     day: "2026-11-27",
     items: [

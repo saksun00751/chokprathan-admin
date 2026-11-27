@@ -127,6 +127,10 @@ export const ops: typeof th = {
       imageCompress: "Uploaded images on both sites are compressed before saving",
       profile: "Profile page: choose an office staff picture as your avatar",
       avatarMenu: "Top right: What's new moved beside the language button; account security and sign-out are in the avatar menu",
+      staffPortrait: "Choose a staff member's picture when adding or managing staff",
+      portraits: "25 new avatar pictures replace the emoji",
+      avatarConfirm: "Profile page: confirms before changing your picture",
+      avatarButton: "Larger picture button at the top right, with an arrow showing it opens a menu",
     },
   },
   rounds: {
