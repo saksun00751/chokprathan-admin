@@ -306,6 +306,8 @@ export const errors: typeof th = {
     lottoBadSlug: "កូដប្រើបានតែ a-z លេខ និងសញ្ញា - ចំនួន ២–៤០ តួ ផ្តើមដោយអក្សរ",
     lottoSlugTaken: "មានឆ្នោតប្រើកូដនេះរួចហើយ",
     lottoCreated: "បានបន្ថែម {name} ហើយនៅបិទនៅឡើយ",
+    groupEnabled: "បានបើកឆ្នោត {n}",
+    groupDisabled: "បានបិទឆ្នោត {n}",
     groupNotFound: "រកមិនឃើញក្រុមឆ្នោតនេះ",
     groupLocked: "មិនអាចផ្លាស់ឆ្នោតចូល ឬចេញពីក្រុមយីគីបានទេ",
     groupNameRequired: "សូមបញ្ចូលឈ្មោះក្រុមជាភាសាថៃ",

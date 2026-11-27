@@ -277,6 +277,8 @@ export const people: typeof th = {
       "settings.site": "ແກ້ຕັ້ງຄ່າເວັບ",
       "lotto.update": "ແກ້ປະເພດຫວຍ",
       "lotto.create": "ເພີ່ມຫວຍ",
+      "lotto.group.enable": "ເປີດຫວຍທັງກຸ່ມ",
+      "lotto.group.disable": "ປິດຫວຍທັງກຸ່ມ",
       "lotto.group.create": "ເພີ່ມກຸ່ມຫວຍ",
       "lotto.group.update": "ແກ້ກຸ່ມຫວຍ",
       "lotto.group.delete": "ລຶບກຸ່ມຫວຍ",

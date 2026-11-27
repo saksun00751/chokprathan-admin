@@ -305,6 +305,8 @@ export const errors = {
     lottoBadSlug: "รหัสใช้ได้เฉพาะ a-z ตัวเลข และขีดกลาง 2–40 ตัว ขึ้นต้นด้วยตัวอักษร",
     lottoSlugTaken: "มีหวยใช้รหัสนี้แล้ว",
     lottoCreated: "เพิ่ม {name} แล้ว ยังปิดใช้งานอยู่",
+    groupEnabled: "เปิดแล้ว {n} รายการ",
+    groupDisabled: "ปิดแล้ว {n} รายการ",
     groupNotFound: "ไม่พบกลุ่มหวยนี้",
     groupLocked: "ย้ายหวยเข้าหรือออกจากกลุ่มยี่กีไม่ได้",
     groupNameRequired: "กรุณากรอกชื่อกลุ่มภาษาไทย",

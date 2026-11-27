@@ -278,6 +278,8 @@ export const people: typeof th = {
       "settings.site": "បានកែការកំណត់គេហទំព័រ",
       "lotto.update": "បានកែប្រភេទឆ្នោត",
       "lotto.create": "បានបន្ថែមឆ្នោត",
+      "lotto.group.enable": "បានបើកក្រុមឆ្នោត",
+      "lotto.group.disable": "បានបិទក្រុមឆ្នោត",
       "lotto.group.create": "បានបន្ថែមក្រុមឆ្នោត",
       "lotto.group.update": "បានកែក្រុមឆ្នោត",
       "lotto.group.delete": "បានលុបក្រុមឆ្នោត",

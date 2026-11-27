@@ -21,7 +21,7 @@ export default async function ResultsPage() {
 }
 
 async function Body() {
-  const [{ rounds }, { t }] = await Promise.all([getAwaitingResults(), getI18n()]);
+  const [{ rounds, groups }, { t }] = await Promise.all([getAwaitingResults(), getI18n()]);
   if (rounds.length === 0) {
     return (
       <Card>
@@ -32,7 +32,7 @@ async function Body() {
   return (
     <section aria-labelledby="to-enter">
       <SectionTitle id="to-enter">{fmt(t.admin.ops.confirmResult.enterHeading, { n: rounds.length })}</SectionTitle>
-      <BulkResults rows={rounds} />
+      <BulkResults rows={rounds} groups={groups} />
     </section>
   );
 }

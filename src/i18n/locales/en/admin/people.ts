@@ -278,6 +278,8 @@ export const people: typeof th = {
       "settings.site": "Changed site settings",
       "lotto.update": "Changed a lottery",
       "lotto.create": "Added lottery",
+      "lotto.group.enable": "Switched a lottery group on",
+      "lotto.group.disable": "Switched a lottery group off",
       "lotto.group.create": "Added lottery group",
       "lotto.group.update": "Edited lottery group",
       "lotto.group.delete": "Deleted lottery group",

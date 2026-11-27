@@ -41,7 +41,7 @@ const smsConfigured = () => {
 };
 
 /** Phone and bank numbers in full only for staff allowed to contact members or pay them. */
-const contactView = (viewer: Employee) => {
+export const contactView = (viewer: Employee) => {
   const full = can(viewer, "members.contact");
   return {
     phone: (p: string | null) => (full ? p : p ? maskPhone(p) : null),
@@ -112,22 +112,27 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
 /** A draw this long after its draw time with no confirmed result is marked late. */
 const LATE_AFTER_MS = 30 * 60_000;
 
+/** The page filters by group and name itself, so it takes everything that is waiting, up to this many. */
+const AWAITING_MAX = 1000;
+
 /** Closed rounds still without a result. */
 export async function getAwaitingResults() {
   const { lang, t } = await getI18n();
   await requireEmployee("rounds.result");
   await io();
   const now = Date.now();
-  const [rows, lottos] = await Promise.all([
+  const [rows, lottos, groups] = await Promise.all([
     q<RoundRow & { bills: number }>(
       // 'pending_confirm' is only left by the old two-person check; it is typed again like any other.
       `SELECT r.*, (SELECT COUNT(*) FROM bills b WHERE b.round_id = r.id AND b.status = 'pending') AS bills
        FROM rounds r JOIN lottos l ON l.id = r.lotto_id
        WHERE r.status IN ('scheduled','pending_confirm') AND r.closes_at <= ? AND NOT ${SELF_DRAWN_SQL}
-       ORDER BY r.closes_at LIMIT 100`,
+       ORDER BY r.closes_at LIMIT ?`,
       now,
+      AWAITING_MAX,
     ),
     listLottos({ includeDisabled: true }),
+    listGroups(),
   ]);
   const byId = new Map(lottos.map((l) => [l.id, l]));
   const view = (row: RoundRow & { bills: number }) => {
@@ -138,6 +143,10 @@ export async function getAwaitingResults() {
       id: r.id,
       lotto: lottoName(lotto, lang, t),
       shortName: lottoShort(lotto, lang, t),
+      /** For the search: staff may type the Thai name or the link code in any language. */
+      thaiName: lotto.name,
+      slug: lotto.slug,
+      group: lotto.group,
       flag: lotto.flag,
       format: lotto.format as ResultFormat,
       label: roundName(r, lang, t),
@@ -147,7 +156,7 @@ export async function getAwaitingResults() {
       bills: row.bills,
     };
   };
-  return { serverNow: now, rounds: rows.flatMap((row) => view(row) ?? []) };
+  return { serverNow: now, groups, rounds: rows.flatMap((row) => view(row) ?? []) };
 }
 
 export async function getAdminRound(roundId: number) {

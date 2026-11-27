@@ -306,6 +306,8 @@ export const errors: typeof th = {
     lottoBadSlug: "The code takes a-z, digits and hyphens, 2–40 characters, starting with a letter",
     lottoSlugTaken: "Another lottery already uses this code",
     lottoCreated: "{name} added; it is still switched off",
+    groupEnabled: "Switched on {n} lotteries",
+    groupDisabled: "Switched off {n} lotteries",
     groupNotFound: "Lottery group not found",
     groupLocked: "Lotteries cannot move into or out of Yiki",
     groupNameRequired: "Enter the group's Thai name",

@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n/client";
 import { LOCALE_META, LOCALES, type Locale } from "@/i18n/config";
 import { lottoName, type LottoI18n } from "@/i18n/labels";
 import { LangTabs } from "@/components/admin/lang-tabs";
+import { GroupSwitch } from "@/components/admin/group-switch";
 import { fmt, formatNumber } from "@/i18n/format";
 import { Search } from "lucide-react";
 import { useState, useTransition } from "react";
@@ -68,9 +69,12 @@ export function LottoList({ lottos, ...shared }: Shared & { lottos: Lotto[] }) {
       {sections.map((s) => (
         // Hidden rather than removed, so a form keeps what was typed but not saved yet.
         <section key={s.group.code} hidden={!s.lottos.some((l) => found.has(l.id))} aria-labelledby={`lotto-group-${s.group.code}`}>
-          <h2 id={`lotto-group-${s.group.code}`} className="mb-2 text-sm font-semibold text-ink-2">
-            {labelOf(s.group)} ({s.lottos.length})
-          </h2>
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h2 id={`lotto-group-${s.group.code}`} className="text-sm font-semibold text-ink-2">
+              {labelOf(s.group)} ({s.lottos.length})
+            </h2>
+            <GroupSwitch code={s.group.code} name={labelOf(s.group)} total={s.lottos.length} on={s.lottos.filter((l) => l.enabled).length} />
+          </div>
           <ul className="flex flex-col gap-2">
             {s.lottos.map((l) => (
               <LottoItem key={l.id} lotto={l} hidden={!found.has(l.id)} {...shared} />
@@ -137,6 +141,13 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
   const translate = (field: "name" | "short", value: string) => setI18n({ ...i18n, [nameLang]: { ...i18n[nameLang], [field]: value } });
   const [group, setGroup] = useState(lotto.group);
   const [enabled, setEnabled] = useState(lotto.enabled);
+  // The group switch changes this from outside the form: follow it, so saving cannot switch it back.
+  const [seenEnabled, setSeenEnabled] = useState(lotto.enabled);
+  if (seenEnabled !== lotto.enabled) {
+    setSeenEnabled(lotto.enabled);
+    setEnabled(lotto.enabled);
+    setSaved({ ...saved, enabled: lotto.enabled });
+  }
   const [autoResult, setAutoResult] = useState(lotto.autoResult);
   const [autoRounds, setAutoRounds] = useState(lotto.autoRounds);
   const [delay, setDelay] = useState(lotto.resultDelayMin);

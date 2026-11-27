@@ -276,6 +276,8 @@ export const people = {
       "settings.site": "แก้ตั้งค่าเว็บ",
       "lotto.update": "แก้ประเภทหวย",
       "lotto.create": "เพิ่มหวย",
+      "lotto.group.enable": "เปิดหวยทั้งกลุ่ม",
+      "lotto.group.disable": "ปิดหวยทั้งกลุ่ม",
       "lotto.group.create": "เพิ่มกลุ่มหวย",
       "lotto.group.update": "แก้กลุ่มหวย",
       "lotto.group.delete": "ลบกลุ่มหวย",

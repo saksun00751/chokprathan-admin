@@ -1,6 +1,7 @@
 "use server";
 
 import { mayAutoResult } from "@/domain/auto-result";
+import { BULK_RESULTS_MAX } from "@/domain/bulk-results";
 import { FLAG_CODES, isLottoSlug } from "@/domain/new-lotto";
 import { parseBkkLocal } from "@/domain/round-input";
 import { isBuiltinGroup, isGroupArt, mayMoveGroup } from "@/domain/lotto-groups";
@@ -36,7 +37,7 @@ import { deleteBanner, moveBanner, saveBanner, setBannerImage } from "@/server/s
 import { adjustBankAccount, archiveBankAccount, saveBankAccount, type BankAccountInput, type BankError } from "@/server/services/banks";
 import { approveDeposit, approveWithdrawal, rejectDeposit, rejectWithdrawal } from "@/server/services/finance";
 import { closeMember, reopenMember, updateMember, type MemberEdit, type MemberEditError } from "@/server/services/members";
-import { getLotto, invalidateLottos, listLottos, createLotto } from "@/server/services/lottos";
+import { getLotto, invalidateLottos, listLottos, createLotto, setGroupEnabled } from "@/server/services/lottos";
 import { limitLocal } from "@/server/services/ratelimit";
 import { setManualLimit } from "@/server/services/risk";
 import { writeOffDebt } from "@/server/services/debts";
@@ -191,7 +192,7 @@ export async function closeRoundAction(roundId: number): Promise<ActionResult> {
 
 type BulkItem = { roundId: number; input: ResultInput };
 type BulkError = { roundId: number; error: string };
-const isBulk = (items: unknown): items is BulkItem[] => Array.isArray(items) && items.length > 0 && items.length <= 60;
+const isBulk = (items: unknown): items is BulkItem[] => Array.isArray(items) && items.length > 0 && items.length <= BULK_RESULTS_MAX;
 
 /** What each of these results would pay. Writes nothing. */
 export async function previewResultsBulkAction(
@@ -481,6 +482,20 @@ export async function saveLottoGroupAction(code: string | null, input: unknown):
   invalidateLottos();
   await audit(g.viewer.id, code === null ? "lotto.group.create" : "lotto.group.update", `lotto-group:${saved}`, values, Date.now(), g.ip);
   return done(g.e.admin.groupSaved);
+}
+
+/** Switch all the lotteries of a group on or off at once. */
+export async function setLottoGroupEnabledAction(code: string, enabled: boolean): Promise<ActionResult> {
+  const g = await gate("lottos.manage");
+  if ("refusal" in g) return g.refusal;
+  if (typeof enabled !== "boolean") return { ok: false, error: g.e.generic.invalid };
+  if (!(await listGroups()).some((x) => x.code === code)) return { ok: false, error: g.e.admin.groupNotFound };
+  const slugs = await setGroupEnabled(code, enabled);
+  if (slugs.length) {
+    await audit(g.viewer.id, enabled ? "lotto.group.enable" : "lotto.group.disable", `lotto-group:${code}`, { slugs }, Date.now(), g.ip);
+    await refreshRoundConfigs();
+  }
+  return done(fmt(enabled ? g.e.admin.groupEnabled : g.e.admin.groupDisabled, { n: slugs.length }));
 }
 
 export async function deleteLottoGroupAction(code: string): Promise<ActionResult> {

@@ -8,12 +8,14 @@ import {
   Gamepad2,
   Gauge,
   Gift,
+  History,
   Images,
   Landmark,
   LayoutDashboard,
   Newspaper,
   Package,
   Palette,
+  ReceiptText,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -30,6 +32,8 @@ type ItemKey =
   | "reports"
   | "rounds"
   | "results"
+  | "resultHistory"
+  | "bills"
   | "risk"
   | "lottos"
   | "packages"
@@ -51,7 +55,7 @@ type ItemKey =
 export type Item = { href: string; key: ItemKey; icon: LucideIcon; need: Permission | null; also?: Permission[]; badge?: "finance" | "results" };
 
 /** The back-office menu; labels come from the admin dictionary. `need: null` items are open to every staff member. */
-export const NAV_GROUPS: { key: "overview" | "lotto" | "members" | "marketing" | "system"; items: Item[] }[] = [
+export const NAV_GROUPS: { key: "overview" | "finance" | "lotto" | "lottoSettings" | "games" | "members" | "marketing" | "system"; items: Item[] }[] = [
   {
     key: "overview",
     items: [
@@ -60,23 +64,39 @@ export const NAV_GROUPS: { key: "overview" | "lotto" | "members" | "marketing" |
     ],
   },
   {
+    key: "finance",
+    items: [
+      { href: "/finance", key: "finance", icon: Banknote, need: "finance.view", badge: "finance" },
+      { href: "/banks", key: "banks", icon: Landmark, need: "banks.view" },
+    ],
+  },
+  {
     key: "lotto",
     items: [
       { href: "/rounds", key: "rounds", icon: CalendarClock, need: "rounds.view" },
       { href: "/results", key: "results", icon: ClipboardCheck, need: "rounds.result", badge: "results" },
+      { href: "/result-history", key: "resultHistory", icon: History, need: "rounds.view" },
+      // Names and phone numbers: the same permission as the member pages.
+      { href: "/bills", key: "bills", icon: ReceiptText, need: "members.view" },
+    ],
+  },
+  {
+    key: "lottoSettings",
+    items: [
       { href: "/risk", key: "risk", icon: Gauge, need: "risk.manage" },
       { href: "/lottos", key: "lottos", icon: Ticket, need: "lottos.manage" },
       { href: "/packages", key: "packages", icon: Package, need: "lottos.manage" },
-      { href: "/games", key: "games", icon: Gamepad2, need: "games.manage" },
     ],
+  },
+  {
+    key: "games",
+    items: [{ href: "/games", key: "games", icon: Gamepad2, need: "games.manage" }],
   },
   {
     key: "members",
     items: [
       { href: "/members", key: "members", icon: Users, need: "members.view" },
       { href: "/blocklist", key: "blocklist", icon: Ban, need: "members.block" },
-      { href: "/finance", key: "finance", icon: Banknote, need: "finance.view", badge: "finance" },
-      { href: "/banks", key: "banks", icon: Landmark, need: "banks.view" },
     ],
   },
   {

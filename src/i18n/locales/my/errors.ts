@@ -307,6 +307,8 @@ export const errors: typeof th = {
     lottoBadSlug: "ကုဒ်တွင် a-z၊ ဂဏန်း၊ - သာ ၂–၄၀ လုံး၊ အက္ခရာဖြင့် စရမည်",
     lottoSlugTaken: "ဤကုဒ်ကို အခြားထီ သုံးထားပြီးပါပြီ",
     lottoCreated: "{name} ထည့်ပြီးပါပြီ၊ ပိတ်ထားဆဲဖြစ်သည်",
+    groupEnabled: "ထီ {n} ခု ဖွင့်ပြီး",
+    groupDisabled: "ထီ {n} ခု ပိတ်ပြီး",
     groupNotFound: "ဤထီအုပ်စုကို မတွေ့ပါ",
     groupLocked: "Yiki အုပ်စုထဲသို့ ထီရွှေ့ဝင်၍ သို့မဟုတ် ရွှေ့ထွက်၍ မရပါ",
     groupNameRequired: "အုပ်စုအမည်ကို ထိုင်းဘာသာဖြင့် ထည့်ပါ",

@@ -278,6 +278,8 @@ export const people: typeof th = {
       "settings.site": "ဝဘ်ဆိုက် ဆက်တင် ပြောင်းခဲ့",
       "lotto.update": "ထီ ပြင်ခဲ့",
       "lotto.create": "ထီထည့်ခဲ့",
+      "lotto.group.enable": "ထီအုပ်စု ဖွင့်ခဲ့",
+      "lotto.group.disable": "ထီအုပ်စု ပိတ်ခဲ့",
       "lotto.group.create": "ထီအုပ်စု ထည့်ခဲ့",
       "lotto.group.update": "ထီအုပ်စု ပြင်ခဲ့",
       "lotto.group.delete": "ထီအုပ်စု ဖျက်ခဲ့",

@@ -306,6 +306,8 @@ export const errors: typeof th = {
     lottoBadSlug: "ລະຫັດໃຊ້ໄດ້ສະເພາະ a-z ຕົວເລກ ແລະ ຂີດກາງ 2–40 ຕົວ ຂຶ້ນຕົ້ນດ້ວຍຕົວອັກສອນ",
     lottoSlugTaken: "ມີຫວຍໃຊ້ລະຫັດນີ້ແລ້ວ",
     lottoCreated: "ເພີ່ມ {name} ແລ້ວ ຍັງປິດໃຊ້ງານຢູ່",
+    groupEnabled: "ເປີດແລ້ວ {n} ລາຍການ",
+    groupDisabled: "ປິດແລ້ວ {n} ລາຍການ",
     groupNotFound: "ບໍ່ພົບກຸ່ມຫວຍນີ້",
     groupLocked: "ຍ້າຍຫວຍເຂົ້າ ຫຼື ອອກຈາກກຸ່ມຢີ່ກີບໍ່ໄດ້",
     groupNameRequired: "ກະລຸນາໃສ່ຊື່ກຸ່ມເປັນພາສາໄທ",

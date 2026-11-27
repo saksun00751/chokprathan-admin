@@ -4,7 +4,7 @@ import { BET_TYPES, betTypesFor } from "@/core/rules/betTypes";
 import type { BetTypeCode, LottoGroup, ResultFormat, RiskProfile, Schedule } from "@/core/rules/types";
 import type { LottoI18n } from "@/i18n/labels";
 import { invalidate, memo } from "@/server/cache";
-import { afterCommit, json, q, q1, run } from "@/server/db";
+import { afterCommit, json, q, q1, run, tx } from "@/server/db";
 import { getSettings, type AllSettings } from "./settings";
 
 export interface LottoLimitsOverride {
@@ -115,6 +115,21 @@ export async function createLotto(v: NewLotto, now = Date.now()): Promise<number
   if (!changes) return null;
   invalidateLottos();
   return lastId;
+}
+
+/**
+ * Switch every lottery of a group on or off, and return the slugs that changed. Rounds and bills
+ * stay as they are.
+ */
+export async function setGroupEnabled(group: string, enabled: boolean, now = Date.now()): Promise<string[]> {
+  const to = enabled ? 1 : 0;
+  const changed = await tx(async () => {
+    const rows = await q<{ slug: string }>("SELECT slug FROM lottos WHERE grp = ? AND enabled <> ? FOR UPDATE", group, to);
+    if (rows.length) await run("UPDATE lottos SET enabled = ?, updated_at = ? WHERE grp = ? AND enabled <> ?", to, now, group, to);
+    return rows.map((r) => r.slug);
+  });
+  if (changed.length) invalidateLottos();
+  return changed;
 }
 
 export async function listLottos({ includeDisabled = false } = {}): Promise<Lotto[]> {
