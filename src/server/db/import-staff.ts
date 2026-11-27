@@ -1,6 +1,6 @@
 // src/server/db/import-staff.ts
 import "server-only";
-import { q1, run, tx } from "./index";
+import { q1, run, tolerateMissingColumn, tx } from "./index";
 
 /**
  * Copy staff accounts and roles from the member app's `users` / `staff_roles` into the admin tables,
@@ -38,6 +38,15 @@ export async function importStaff({ refresh = false }: { refresh?: boolean } = {
               totp_last_step = VALUES(totp_last_step), must_change_password = VALUES(must_change_password), note = VALUES(note)`
            : `ON DUPLICATE KEY UPDATE employees.id = employees.id`
        }`,
+    );
+    // A refresh copies status, password and role again: accounts deleted here stay deleted.
+    await tolerateMissingColumn(
+      () =>
+        run(
+          `UPDATE employees SET status = 'suspended', password_hash = '!', employee_role_id = NULL, totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL
+           WHERE deleted_at IS NOT NULL`,
+        ),
+      null,
     );
     const count = async (table: string) => (await q1<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`))?.n ?? 0;
     return { roles: await count("employee_roles"), employees: await count("employees") };

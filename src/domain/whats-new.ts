@@ -15,7 +15,8 @@ export type WhatsNewKey =
   | "memberLottos" | "memberNames" | "memberYiki" | "memberNoYiki"
   | "bills" | "resultHistory" | "exposure" | "transactions" | "referrals" | "whatsNew" | "groupSwitch" | "nameEditor"
   | "resultEntry" | "menu" | "branding" | "imageCompress" | "profile" | "avatarMenu"
-  | "staffPortrait" | "portraits" | "avatarConfirm" | "avatarButton" | "logoutConfirm";
+  | "staffPortrait" | "portraits" | "avatarConfirm" | "avatarButton" | "logoutConfirm"
+  | "staffDelete" | "staffListAvatar";
 
 export interface WhatsNewItem {
   key: WhatsNewKey;
@@ -41,6 +42,8 @@ export const RELEASES: readonly Release[] = [
       { key: "avatarConfirm", area: "admin", kind: "changed" },
       { key: "avatarButton", area: "admin", kind: "changed" },
       { key: "logoutConfirm", area: "admin", kind: "changed" },
+      { key: "staffDelete", area: "admin", kind: "added", link: { href: "/staff", need: "staff.manage" } },
+      { key: "staffListAvatar", area: "admin", kind: "changed", link: { href: "/staff", need: "staff.manage" } },
     ],
   },
   {

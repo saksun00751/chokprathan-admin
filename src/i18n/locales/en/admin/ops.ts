@@ -132,6 +132,8 @@ export const ops: typeof th = {
       avatarConfirm: "Profile page: confirms before changing your picture",
       avatarButton: "Larger picture button at the top right, with an arrow showing it opens a menu",
       logoutConfirm: "Log out: asks for confirmation first",
+      staffDelete: "Owners can delete staff; their past activity is kept",
+      staffListAvatar: "The staff list shows each person's picture",
     },
   },
   rounds: {

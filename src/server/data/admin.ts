@@ -26,7 +26,7 @@ import { gameHistory } from "@/server/data/game-history";
 import { blockedAmong, blocksFor, listBlocks, type BlockRow } from "@/server/services/blocklist";
 import { isBlockKind, type Identity } from "@/domain/blocklist";
 import { getSetting, getSettings } from "@/server/services/settings";
-import { listRoles, listStaff } from "@/server/services/employees";
+import { listRoles, listStaff, listStaffNames } from "@/server/services/employees";
 import { recentStaffSignIns } from "@/server/logs";
 import { auditIntegrity } from "@/server/services/audit";
 import { bankMoves, listBankAccounts, payoutAccounts } from "@/server/services/banks";
@@ -580,7 +580,8 @@ export async function getStaffPage() {
   const viewer = await requireEmployee("staff.manage");
   await io();
   const [staff, roles] = await Promise.all([listStaff(), listRoles()]);
-  const logins = await recentStaffSignIns(staff, 60);
+  // Every account, deleted ones too: a past sign-in keeps its name.
+  const logins = await recentStaffSignIns(await listStaffNames(), 60);
   return { viewer: { id: viewer.id, isOwner: viewer.isOwner, permissions: viewer.permissions }, staff, roles, logins };
 }
 

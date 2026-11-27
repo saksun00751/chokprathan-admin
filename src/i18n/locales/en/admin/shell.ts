@@ -131,6 +131,8 @@ export const shell: typeof th = {
   confirm: {
     logout: "Log out?",
     logoutNote: "Do you want to log out? You will need to sign in again to continue.",
+    deleteStaff: "Delete this staff member?",
+    deleteStaffNote: "The account leaves the list, is signed out on every device and can never sign in again. This cannot be undone, and the username cannot be used for a new account.",
     confirm: "Confirm",
     cancel: "Cancel",
     member: "Member",

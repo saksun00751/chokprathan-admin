@@ -5,6 +5,7 @@ import { fmt, formatDateTime } from "@/i18n/format";
 import { KeyRound, Pencil, Plus, ShieldCheck, ShieldOff, Trash2, UserPlus } from "lucide-react";
 import { useState, useTransition, type ReactNode } from "react";
 import { useConfirm } from "@/components/admin/confirm";
+import { initial } from "@/components/admin/initial";
 import { PortraitField } from "@/components/admin/portrait-field";
 import { StaffAvatar } from "@/components/admin/staff-avatar";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,9 @@ import { useToast } from "@/components/ui/toast";
 import { changedRows } from "@/domain/confirm";
 import type { Avatar } from "@/domain/avatar";
 import { ALL, PERMISSIONS, canActOnRole, canGrant, type Rank } from "@/domain/permissions";
+import { staffDeleteProblem } from "@/domain/staff-delete";
 import type { AnyActionResult } from "@/lib/action";
-import { createStaffAction, deleteRoleAction, resetStaffPasswordAction, resetStaffTotpAction, saveRoleAction, updateStaffAction } from "@/server/actions/admin";
+import { createStaffAction, deleteRoleAction, deleteStaffAction, resetStaffPasswordAction, resetStaffTotpAction, saveRoleAction, updateStaffAction } from "@/server/actions/admin";
 import type { StaffMember, StaffRole } from "@/server/services/employees";
 
 function useRun() {
@@ -86,10 +88,18 @@ export function StaffTable({ staff, roles, viewer }: { staff: StaffMember[]; rol
             {staff.map((s) => (
               <tr key={s.id}>
                 <td className="px-3 py-2.5">
-                  <span className="block font-medium text-ink">
-                    {s.name} {s.id === viewerId && <span className="text-xs font-normal text-ink-3">{st.you}</span>}
-                  </span>
-                  <span className="block text-xs text-ink-3">{s.username}</span>
+                  <div className="flex items-center gap-3">
+                    {/* The name is right beside it, so the picture says nothing more to a screen reader. */}
+                    <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand-soft-ink">
+                      {s.avatar ? <StaffAvatar id={s.avatar} className="size-full rounded-full" /> : initial(s.name || s.username)}
+                    </span>
+                    <div>
+                      <span className="block font-medium text-ink">
+                        {s.name} {s.id === viewerId && <span className="text-xs font-normal text-ink-3">{st.you}</span>}
+                      </span>
+                      <span className="block text-xs text-ink-3">{s.username}</span>
+                    </div>
+                  </div>
                 </td>
                 <td className="px-3 py-2.5">{s.isOwner ? <Badge tone="gold">{s.roleName}</Badge> : <Badge tone="brand">{s.roleName ?? "-"}</Badge>}</td>
                 <td className="px-3 py-2.5">
@@ -126,7 +136,16 @@ export function StaffTable({ staff, roles, viewer }: { staff: StaffMember[]; rol
         </table>
       </div>
       <CreateStaffSheet open={creating} onClose={() => setCreating(false)} roles={assignable} />
-      {editing && <EditStaffSheet key={editing.id} member={editing} roles={assignable} isSelf={editing.id === viewerId} onClose={() => setEditing(null)} />}
+      {editing && (
+        <EditStaffSheet
+          key={editing.id}
+          member={editing}
+          roles={assignable}
+          isSelf={editing.id === viewerId}
+          canDelete={staffDeleteProblem(viewer, editing.id) === null}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   );
 }
@@ -203,7 +222,19 @@ function CreateStaffSheet({ open, onClose, roles }: { open: boolean; onClose: ()
   );
 }
 
-function EditStaffSheet({ member, roles, isSelf, onClose }: { member: StaffMember; roles: StaffRole[]; isSelf: boolean; onClose: () => void }) {
+function EditStaffSheet({
+  member,
+  roles,
+  isSelf,
+  canDelete,
+  onClose,
+}: {
+  member: StaffMember;
+  roles: StaffRole[];
+  isSelf: boolean;
+  canDelete: boolean;
+  onClose: () => void;
+}) {
   const { t } = useI18n();
   const st = t.admin.people.staff;
   const pf = t.admin.people.profile;
@@ -336,6 +367,35 @@ function EditStaffSheet({ member, roles, isSelf, onClose }: { member: StaffMembe
             >
               <ShieldOff className="size-4" aria-hidden="true" />
               {st.resetTotpButton}
+            </Button>
+          </div>
+        )}
+
+        {canDelete && (
+          <div className="rounded-card border border-line p-3">
+            <p className="text-sm font-medium text-ink">{st.deleteStaff}</p>
+            <p className="text-xs text-ink-3">{st.deleteStaffHint}</p>
+            <Button
+              className="mt-2"
+              variant="dangerGhost"
+              loading={pending}
+              onClick={async () => {
+                const answer = await ask({
+                  title: k.deleteStaff,
+                  tone: "danger",
+                  details: [
+                    [st.name, member.name],
+                    [st.username, member.username],
+                    [st.role, member.roleName ?? "-"],
+                  ],
+                  note: k.deleteStaffNote,
+                  confirmLabel: st.deleteStaff,
+                });
+                if (answer.ok) run(() => deleteStaffAction(member.id), onClose);
+              }}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              {st.deleteStaff}
             </Button>
           </div>
         )}

@@ -101,6 +101,12 @@ export const MIGRATIONS: Migration[] = [
     name: "employee avatar",
     statements: ["ALTER TABLE employees ADD COLUMN IF NOT EXISTS avatar VARCHAR(16) NULL"],
   },
+  {
+    // A deleted account keeps its row, so history still names who did what.
+    version: 3,
+    name: "employee deletion",
+    statements: ["ALTER TABLE employees ADD COLUMN IF NOT EXISTS deleted_at BIGINT NULL"],
+  },
 ];
 
 /** Every table this app creates, children first (tests truncate and drop in this order). */

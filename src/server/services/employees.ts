@@ -3,7 +3,8 @@ import type { Avatar } from "@/domain/avatar";
 import { readAvatars, saveAvatar } from "@/server/services/profile";
 import { errorsT } from "@/i18n/server";
 import { ALL, canActOnRole, isPermission, mayEditRole, type Rank } from "@/domain/permissions";
-import { json, q, q1, run, tx } from "@/server/db";
+import { staffDeleteProblem } from "@/domain/staff-delete";
+import { json, q, q1, run, tolerateMissingColumn, tx } from "@/server/db";
 import { audit } from "./audit";
 import { hashPassword, revokeAllEmployeeSessions, employeePasswordProblem } from "./employee-auth";
 
@@ -46,8 +47,20 @@ async function roleRank(roleId: number): Promise<Rank | null> {
   return r ? { isOwner: r.is_owner === 1, permissions: json.parse<string[]>(r.permissions, []) } : null;
 }
 
-/** The rank of a staff account (no role = no permissions), or null when there is no such employee. */
+/*
+ * The deleted_at column comes with admin migration 3. It is read on its own, so the staff screen
+ * keeps working on a database that has not been migrated yet.
+ */
+async function deletedStaff(): Promise<Set<number>> {
+  return tolerateMissingColumn(async () => {
+    const rows = await q<{ id: number }>("SELECT id FROM employees WHERE deleted_at IS NOT NULL");
+    return new Set(rows.map((r) => r.id));
+  }, new Set<number>());
+}
+
+/** The rank of a staff account (no role = no permissions), or null when there is no such employee or it was deleted. */
 async function staffRank(userId: number): Promise<Rank | null> {
+  if ((await deletedStaff()).has(userId)) return null;
   const r = await q1<{ is_owner: number | null; permissions: string | null }>(
     "SELECT r.is_owner, r.permissions FROM employees e LEFT JOIN employee_roles r ON r.id = e.employee_role_id WHERE e.id = ?",
     userId,
@@ -70,6 +83,11 @@ export async function listRoles(): Promise<StaffRole[]> {
   }));
 }
 
+/** Names of every account, including deleted ones, for reading history. */
+export async function listStaffNames(): Promise<{ id: number; name: string }[]> {
+  return q<{ id: number; name: string }>("SELECT id, name FROM employees");
+}
+
 export async function listStaff(): Promise<StaffMember[]> {
   const rows = await q<{
     id: number;
@@ -87,8 +105,8 @@ export async function listStaff(): Promise<StaffMember[]> {
     `SELECT e.id, e.username, e.name, e.status, e.employee_role_id, r.name AS role_name, r.is_owner, e.totp_enabled, e.last_login_at, e.last_ip, e.created_at
      FROM employees e LEFT JOIN employee_roles r ON r.id = e.employee_role_id ORDER BY e.created_at`,
   );
-  const avatars = await readAvatars();
-  return rows.map((r) => ({
+  const [avatars, deleted] = await Promise.all([readAvatars(), deletedStaff()]);
+  return rows.filter((r) => !deleted.has(r.id)).map((r) => ({
     id: r.id,
     avatar: avatars.get(r.id) ?? null,
     username: r.username,
@@ -236,9 +254,9 @@ export async function updateStaff(
       "SELECT employee_role_id, status FROM employees WHERE id = ? FOR UPDATE",
       id,
     );
-    if (!current) return { ok: false as const, error: e.staff.notFound };
-    const target = await staffRank(id);
-    if (target && !canActOnRole(actor, target)) return { ok: false as const, error: target.isOwner ? e.staff.ownerOnly : e.staff.outranked };
+    const target = current ? await staffRank(id) : null;
+    if (!current || !target) return { ok: false as const, error: e.staff.notFound };
+    if (!canActOnRole(actor, target)) return { ok: false as const, error: target.isOwner ? e.staff.ownerOnly : e.staff.outranked };
     const role = await roleRank(input.roleId);
     if (!role) return { ok: false as const, error: e.staff.pickRole };
     if (!canActOnRole(actor, role)) return { ok: false as const, error: role.isOwner ? e.staff.ownerOnly : e.staff.cannotGrant };
@@ -282,6 +300,35 @@ export async function resetStaffTotp(id: number, actor: StaffActor): Promise<{ o
   await revokeAllEmployeeSessions(id);
   await audit(actor.id, "staff.2fa.reset", `user:${id}`);
   return { ok: true };
+}
+
+/**
+ * Delete a staff account, owners only: it leaves the list, is signed out everywhere and can never
+ * sign in or be changed again. The row and its username stay, so history still names who did what.
+ */
+export async function deleteStaff(id: number, actor: StaffActor, now = Date.now()): Promise<{ ok: true } | Fail> {
+  const e = await errorsT();
+  const problem = staffDeleteProblem(actor, id);
+  if (problem) return { ok: false, error: problem === "self" ? e.staff.selfDelete : e.staff.deleteOwnerOnly };
+  return tx(async () => {
+    const current = await q1<{ username: string; name: string }>("SELECT username, name FROM employees WHERE id = ? FOR UPDATE", id);
+    if (!current || !(await staffRank(id))) return { ok: false as const, error: e.staff.notFound };
+    if ((await activeOwners(id)) === 0) return { ok: false as const, error: e.staff.lastOwner };
+    // "!" matches no password. Without a role the account holds no permission and blocks no role's removal.
+    const deleted = await tolerateMissingColumn(async () => {
+      await run(
+        `UPDATE employees SET deleted_at = ?, status = 'suspended', password_hash = '!', employee_role_id = NULL,
+                totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL WHERE id = ?`,
+        now,
+        id,
+      );
+      return true;
+    }, false);
+    if (!deleted) return { ok: false as const, error: e.staff.deleteNotReady };
+    await revokeAllEmployeeSessions(id);
+    await audit(actor.id, "staff.delete", `user:${id}`, { username: current.username, name: current.name }, now);
+    return { ok: true as const };
+  });
 }
 
 export const OWNER_PERMISSIONS = [ALL];

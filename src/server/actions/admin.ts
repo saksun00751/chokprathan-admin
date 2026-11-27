@@ -49,7 +49,7 @@ import { previewResult, submitResult, type PayoutPreview } from "@/server/servic
 import { cancelRound, closeRoundNow, reconcileRounds, createRound } from "@/server/services/rounds";
 import { applyConfigToRound, refreshRoundConfigs } from "@/server/services/round-configs";
 import { getSetting, getSettings, setSetting } from "@/server/services/settings";
-import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
+import { createStaff, deleteRole, deleteStaff, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
 import { InsufficientFundsError, move } from "@/server/services/wallet";
 import { saveImage } from "@/server/uploads";
 import { updateBranding } from "@/server/services/branding";
@@ -1117,6 +1117,14 @@ export async function updateStaffAction(
   if (avatar !== undefined && avatar !== null && !isAvatar(avatar)) return { ok: false, error: g.e.generic.invalid };
   const r = await updateStaff(id, { name: String(input.name ?? ""), roleId: input.roleId, status: input.status, avatar }, g.viewer);
   return r.ok ? done(g.e.admin.staffSaved) : { ok: false, error: r.error };
+}
+
+export async function deleteStaffAction(id: number): Promise<ActionResult> {
+  const g = await gate("staff.manage");
+  if ("refusal" in g) return g.refusal;
+  if (!isId(id)) return { ok: false, error: g.e.admin.staffNotFound };
+  const r = await deleteStaff(id, g.viewer);
+  return r.ok ? done(g.e.admin.staffDeleted) : { ok: false, error: r.error };
 }
 
 export async function resetStaffPasswordAction(id: number, password: string): Promise<ActionResult> {

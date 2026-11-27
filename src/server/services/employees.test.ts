@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { run } from "@/server/db";
 import { hasTestDb, resetDb } from "@/test/db";
-import { createStaff, resetStaffPassword, resetStaffTotp, saveRole, updateStaff, type StaffActor } from "./employees";
+import { checkEmployeeLogin } from "./employee-auth";
+import { createStaff, deleteStaff, listStaff, listStaffNames, resetStaffPassword, resetStaffTotp, saveRole, updateStaff, type StaffActor } from "./employees";
 
 const now = Date.UTC(2026, 10, 8, 5, 0);
 const MANAGER = ["dashboard.view", "members.view", "staff.manage"];
@@ -51,6 +52,23 @@ describe.skipIf(!hasTestDb)("staff management cannot escalate privileges", () =>
     expect((await resetStaffPassword(ownerId, "Temp-passw0rd", manager)).ok).toBe(false);
     expect((await resetStaffTotp(ownerId, manager)).ok).toBe(false);
     expect((await updateStaff(ownerId, { name: "owner", roleId: managerRole, status: "suspended" }, manager)).ok).toBe(false);
+  });
+
+  test("only an owner deletes staff, and never themselves", async () => {
+    expect((await deleteStaff(ownerId, manager)).ok).toBe(false);
+    expect((await deleteStaff(ownerId, owner)).ok).toBe(false);
+    expect((await deleteStaff(manager.id, owner)).ok).toBe(true);
+  });
+
+  test("a deleted account leaves the list, cannot sign in and cannot be brought back", async () => {
+    await deleteStaff(manager.id, owner);
+    expect((await listStaff()).map((s) => s.id)).toEqual([ownerId]);
+    expect((await listStaffNames()).map((s) => s.id)).toContain(manager.id);
+    expect((await checkEmployeeLogin("boss", "Passw0rd-long", { ip: null, userAgent: null }, now)).ok).toBe(false);
+    expect((await updateStaff(manager.id, { name: "boss", roleId: managerRole, status: "active" }, owner)).ok).toBe(false);
+    expect((await resetStaffPassword(manager.id, "Temp-passw0rd", owner)).ok).toBe(false);
+    expect((await resetStaffTotp(manager.id, owner)).ok).toBe(false);
+    expect((await deleteStaff(manager.id, owner)).ok).toBe(false);
   });
 
   test("roles hold only what their editor holds", async () => {
