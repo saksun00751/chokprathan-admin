@@ -7,10 +7,14 @@ import {
   ClipboardCheck,
   Gamepad2,
   Gauge,
+  ArrowLeftRight,
+  Flame,
+  Share2,
   Gift,
   History,
   Images,
   Landmark,
+  Megaphone,
   LayoutDashboard,
   Newspaper,
   Package,
@@ -41,6 +45,9 @@ type ItemKey =
   | "members"
   | "blocklist"
   | "finance"
+  | "transactions"
+  | "exposure"
+  | "referrals"
   | "banks"
   | "promotions"
   | "activities"
@@ -50,6 +57,7 @@ type ItemKey =
   | "settings"
   | "staff"
   | "audit"
+  | "whatsNew"
   | "security";
 /** `also`: other permissions that each open the item on their own. */
 export type Item = { href: string; key: ItemKey; icon: LucideIcon; need: Permission | null; also?: Permission[]; badge?: "finance" | "results" };
@@ -68,6 +76,7 @@ export const NAV_GROUPS: { key: "overview" | "finance" | "lotto" | "lottoSetting
     items: [
       { href: "/finance", key: "finance", icon: Banknote, need: "finance.view", badge: "finance" },
       { href: "/banks", key: "banks", icon: Landmark, need: "banks.view" },
+      { href: "/transactions", key: "transactions", icon: ArrowLeftRight, need: "finance.view" },
     ],
   },
   {
@@ -78,6 +87,7 @@ export const NAV_GROUPS: { key: "overview" | "finance" | "lotto" | "lottoSetting
       { href: "/result-history", key: "resultHistory", icon: History, need: "rounds.view" },
       // Names and phone numbers: the same permission as the member pages.
       { href: "/bills", key: "bills", icon: ReceiptText, need: "members.view" },
+      { href: "/exposure", key: "exposure", icon: Flame, need: "risk.manage" },
     ],
   },
   {
@@ -97,6 +107,7 @@ export const NAV_GROUPS: { key: "overview" | "finance" | "lotto" | "lottoSetting
     items: [
       { href: "/members", key: "members", icon: Users, need: "members.view" },
       { href: "/blocklist", key: "blocklist", icon: Ban, need: "members.block" },
+      { href: "/referrals", key: "referrals", icon: Share2, need: "members.view" },
     ],
   },
   {
@@ -115,6 +126,7 @@ export const NAV_GROUPS: { key: "overview" | "finance" | "lotto" | "lottoSetting
       { href: "/settings", key: "settings", icon: Settings, need: "settings.manage" },
       { href: "/staff", key: "staff", icon: UserCog, need: "staff.manage" },
       { href: "/audit", key: "audit", icon: ScrollText, need: "audit.view" },
+      { href: "/whats-new", key: "whatsNew", icon: Megaphone, need: null },
       { href: "/security", key: "security", icon: ShieldCheck, need: null },
     ],
   },
