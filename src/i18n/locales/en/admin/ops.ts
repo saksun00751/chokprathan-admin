@@ -123,6 +123,10 @@ export const ops: typeof th = {
       nameEditor: "Edit lottery names in each language",
       resultEntry: "Result entry: grouped, searchable, and shows more waiting draws",
       menu: "Side menu: new sections",
+      branding: "New page for the site name, meta text, logo, icon and share image",
+      imageCompress: "Uploaded images on both sites are compressed before saving",
+      profile: "Profile page: pick an emoji as your avatar",
+      avatarMenu: "Top right: What's new moved beside the language button; account security and sign-out are in the avatar menu",
     },
   },
   rounds: {

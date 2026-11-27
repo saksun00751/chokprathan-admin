@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import QRCode from "qrcode";
 import { BRAND } from "@/config/brand";
+import { isAvatar } from "@/domain/avatar";
 import { fmt } from "@/i18n/format";
 import { errorsT } from "@/i18n/server";
 import type { ActionResult } from "@/lib/action";
@@ -17,15 +18,16 @@ import {
   revokeAllEmployeeSessions,
   verifyPassword,
 } from "@/server/services/employee-auth";
-import { limitShared, retryText } from "@/server/services/ratelimit";
+import { limitLocal, limitShared, retryText } from "@/server/services/ratelimit";
+import { saveAvatar } from "@/server/services/profile";
 import { getSetting } from "@/server/services/settings";
-import { getEmployee } from "@/server/session";
+import { getEmployee, needsTotpSetup } from "@/server/session";
 import { newTotpSecret, otpauthUri } from "@/server/totp";
 
 /*
- * The signed-in employee's own security settings (/security). These use getEmployee(), not
- * employeeFor(): an employee who must change their password or set up 2-step sign-in has to be
- * able to do exactly that.
+ * The signed-in employee's own settings: security (/security) and profile (/profile). These use
+ * getEmployee(), not employeeFor(): an employee who must change their password or set up 2-step
+ * sign-in has to be able to do exactly that (and nothing else, so the profile action refuses them).
  */
 
 /** Employees change their password on /security, with the employee password rules. */
@@ -82,4 +84,16 @@ export async function disableTotpAction(password: string): Promise<ActionResult>
   await revokeAllEmployeeSessions(viewer.id);
   await authLog("2fa_disabled", viewer.id, null, await clientInfo());
   return { ok: true, message: e.account.totpOff };
+}
+
+/** The emoji shown as the employee's avatar; null goes back to the first letter of the name. */
+export async function saveAvatarAction(avatar: string | null): Promise<ActionResult> {
+  const e = await errorsT();
+  const viewer = await getEmployee();
+  if (!viewer || viewer.mustChangePassword || (await needsTotpSetup(viewer))) return { ok: false, error: e.generic.staffOnly };
+  if (avatar !== null && !isAvatar(avatar)) return { ok: false, error: e.generic.invalid };
+  if (!limitLocal(`avatar:${viewer.id}`, 30, 60_000).ok) return { ok: false, error: e.generic.tooFast };
+  if (!(await saveAvatar(viewer.id, avatar))) return { ok: false, error: e.account.avatarNotReady };
+  refresh();
+  return { ok: true, message: e.account.avatarSaved };
 }

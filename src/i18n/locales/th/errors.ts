@@ -56,6 +56,8 @@ export const errors = {
     staffMix: "รหัสผ่านพนักงานต้องมีทั้งตัวอักษรและตัวเลข",
   },
   account: {
+    avatarSaved: "เปลี่ยน avatar แล้ว",
+    avatarNotReady: "ยังบันทึกไม่ได้ ผู้ดูแลระบบต้องอัปเดตฐานข้อมูลก่อน",
     tooOften: "ลองบ่อยเกินไป รอ {wait}",
     newShort: "รหัสผ่านใหม่อย่างน้อย 8 ตัว",
     tooLong: "รหัสผ่านยาวเกินไป",
@@ -72,7 +74,7 @@ export const errors = {
     failed: "ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
     notConfigured: "ระบบส่ง SMS ยังไม่ได้ตั้งค่า กรุณาติดต่อเจ้าหน้าที่",
   },
-  upload: { empty: "ไม่พบไฟล์รูป", tooBig: "ไฟล์รูปต้องไม่เกิน 2 MB", type: "รองรับเฉพาะไฟล์ PNG JPG และ WEBP" },
+  upload: { empty: "ไม่พบไฟล์รูป", tooBig: "ไฟล์รูปต้องไม่เกิน 2 MB", type: "รองรับเฉพาะไฟล์ PNG JPG และ WEBP", tooSmall: "รูปเล็กเกินไป ดูขนาดขั้นต่ำใต้ปุ่มอัปโหลด", notSquare: "รูปต้องเป็นสี่เหลี่ยมจัตุรัส" },
   wallet: {
     blocked: "บัญชีนี้ถูกระงับการถอนเงิน กรุณาติดต่อเจ้าหน้าที่",
     depositBurst: "สร้างรายการฝากบ่อยเกินไป ลองใหม่ในอีก {wait}",
@@ -390,6 +392,9 @@ export const errors = {
     settingsSaved: "บันทึกการตั้งค่าแล้ว",
     themeNotFound: "ไม่พบธีมนี้",
     themeSaved: "เปลี่ยนธีมแล้ว ทุกหน้าใช้สีใหม่ทันที",
+    brandingSaved: "บันทึกแล้ว หน้าเว็บใช้ค่าใหม่ภายในประมาณ 1 นาที",
+    brandingImageSaved: "บันทึกรูปแล้ว {width}×{height} พิกเซล {kb} KB",
+    brandingImageReset: "กลับไปใช้รูปเดิมแล้ว",
     bannerImageFailed: "บันทึกข้อความแล้ว แต่รูปใช้ไม่ได้: {error}",
     bannerAdded: "เพิ่มแบนเนอร์แล้ว",
     bannerSaved: "บันทึกแบนเนอร์แล้ว",

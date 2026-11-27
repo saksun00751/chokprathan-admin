@@ -57,6 +57,8 @@ export const errors: typeof th = {
     staffMix: "ពាក្យសម្ងាត់បុគ្គលិកត្រូវមានទាំងអក្សរ និងលេខ",
   },
   account: {
+    avatarSaved: "បានប្តូរ avatar",
+    avatarNotReady: "មិនទាន់រក្សាទុកបានទេ អ្នកគ្រប់គ្រងប្រព័ន្ធត្រូវធ្វើបច្ចុប្បន្នភាពមូលដ្ឋានទិន្នន័យសិន",
     tooOften: "ព្យាយាមញឹកញាប់ពេក សូមរង់ចាំ {wait}",
     newShort: "ពាក្យសម្ងាត់ថ្មីយ៉ាងតិច 8 តួ",
     tooLong: "ពាក្យសម្ងាត់វែងពេក",
@@ -73,7 +75,7 @@ export const errors: typeof th = {
     failed: "ផ្ញើ SMS មិនបានសម្រេច សូមព្យាយាមម្តងទៀត",
     notConfigured: "ប្រព័ន្ធផ្ញើ SMS មិនទាន់កំណត់ សូមទាក់ទងបុគ្គលិក",
   },
-  upload: { empty: "រកមិនឃើញឯកសាររូបភាព", tooBig: "ឯកសាររូបភាពត្រូវមិនលើស 2 MB", type: "គាំទ្រតែឯកសារ PNG JPG និង WEBP" },
+  upload: { empty: "រកមិនឃើញឯកសាររូបភាព", tooBig: "ឯកសាររូបភាពត្រូវមិនលើស 2 MB", type: "គាំទ្រតែឯកសារ PNG JPG និង WEBP", tooSmall: "រូបភាពតូចពេក សូមមើលទំហំអប្បបរមានៅក្រោមប៊ូតុងផ្ទុកឡើង", notSquare: "រូបភាពត្រូវតែជាការេ" },
   wallet: {
     blocked: "ការដកប្រាក់ត្រូវបានហាមឃាត់លើគណនីនេះ។ សូមទាក់ទងបុគ្គលិក។",
     depositBurst: "បង្កើតការដាក់ប្រាក់ញឹកញាប់ពេក សាកម្តងទៀតក្នុង {wait}",
@@ -391,6 +393,9 @@ export const errors: typeof th = {
     settingsSaved: "បានរក្សាទុកការកំណត់",
     themeNotFound: "រកមិនឃើញស្បែកនេះ",
     themeSaved: "បានប្តូរស្បែក គ្រប់ទំព័រប្រើពណ៌ថ្មីភ្លាមៗ",
+    brandingSaved: "បានរក្សាទុក គេហទំព័រនឹងបង្ហាញតម្លៃថ្មីក្នុងរយៈពេលប្រហែល ១ នាទី",
+    brandingImageSaved: "បានរក្សាទុករូបភាព {width}×{height} px, {kb} KB",
+    brandingImageReset: "បានត្រឡប់ទៅរូបភាពដើម",
     bannerImageFailed: "បានរក្សាទុកអត្ថបទ ប៉ុន្តែរូបភាពប្រើមិនបាន៖ {error}",
     bannerAdded: "បានបន្ថែមបដា",
     bannerSaved: "បានរក្សាទុកបដា",

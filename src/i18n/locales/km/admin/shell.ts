@@ -33,9 +33,11 @@ export const shell: typeof th = {
     banners: "បដាទំព័រដើម",
     news: "ព័ត៌មាន",
     theme: "ស្បែកពណ៌",
+    branding: "ឈ្មោះ ឡូហ្គោ និង meta",
     settings: "ការកំណត់គេហទំព័រ",
     staff: "បុគ្គលិក និងសិទ្ធិ",
     audit: "កំណត់ត្រាសកម្មភាព",
+    profile: "ប្រវត្តិរូប",
     security: "សុវត្ថិភាពគណនី",
   },
   denied: {

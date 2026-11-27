@@ -24,6 +24,7 @@ import { formatBaht } from "@/core/rules/money";
 import type { Permission } from "@/domain/permissions";
 import { validateProfile } from "@/core/rules/pricing";
 import { isThemeId } from "@/domain/themes";
+import { cleanBrandText, isBrandSlot, type BrandSlot, type BrandText } from "@/domain/branding";
 import type { BetTypeCode, ManualLimit, RiskProfile, Schedule } from "@/core/rules/types";
 import type { ActionResult } from "@/lib/action";
 import { json, q1, run, tx, tolerateMissingTable, tolerateMissingColumn } from "@/server/db";
@@ -50,6 +51,7 @@ import { getSetting, getSettings, setSetting } from "@/server/services/settings"
 import { createStaff, deleteRole, resetStaffPassword, resetStaffTotp, saveRole, updateStaff } from "@/server/services/employees";
 import { InsufficientFundsError, move } from "@/server/services/wallet";
 import { saveImage } from "@/server/uploads";
+import { updateBranding } from "@/server/services/branding";
 import { invalidate } from "@/server/cache";
 import { employeeFor, getEmployee, needsTotpSetup } from "@/server/session";
 
@@ -986,6 +988,52 @@ export async function saveThemeAction(themeId: string): Promise<ActionResult> {
   await audit(g.viewer.id, "settings.theme", "theme", { id: themeId }, Date.now(), g.ip);
   updateTag("theme");
   return done(g.e.admin.themeSaved);
+}
+
+/* ---------- site name, meta text and images ---------- */
+
+const SLOT_PROFILE = { logo: "logo", adminLogo: "logo", icon: "icon", share: "share" } as const;
+
+/** One audit line for a branding change; a removed text shows as null. */
+async function auditBranding(actorId: number, ip: string | null, before: object, after: object) {
+  const b = flat(before as Record<string, unknown>);
+  const a = flat(after as Record<string, unknown>);
+  for (const k of Object.keys(b)) if (!(k in a)) a[k] = null;
+  await audit(actorId, "settings.branding", "branding", changes(b, a), Date.now(), ip);
+}
+
+export async function saveBrandingAction(input: BrandText): Promise<ActionResult> {
+  const g = await gate("settings.manage");
+  if ("refusal" in g) return g.refusal;
+  if (!input) return { ok: false, error: g.e.generic.incomplete };
+  const { before, after } = await updateBranding(cleanBrandText(input));
+  await auditBranding(g.viewer.id, g.ip, before, after);
+  updateTag("branding");
+  return done(g.e.admin.brandingSaved);
+}
+
+/** Upload one image, or with `formData` null go back to the built-in one. Old files are kept: cached pages still point at them. */
+export async function setBrandImageAction(slot: BrandSlot, formData: FormData | null): Promise<ActionResult> {
+  const g = await gate("settings.manage");
+  if ("refusal" in g) return g.refusal;
+  if (!isBrandSlot(slot)) return { ok: false, error: g.e.generic.invalid };
+  let name: string | null = null;
+  let message = g.e.admin.brandingImageReset;
+  if (formData) {
+    const file = formData.get("image");
+    if (!(file instanceof File) || file.size === 0) return { ok: false, error: g.e.upload.empty };
+    const saved = await saveImage(new Uint8Array(await file.arrayBuffer()), `brand-${slot.toLowerCase()}`, {
+      ownerId: g.viewer.id,
+      profile: SLOT_PROFILE[slot],
+    });
+    if (!saved.ok) return { ok: false, error: saved.error };
+    name = saved.name;
+    message = fmt(g.e.admin.brandingImageSaved, { width: saved.width, height: saved.height, kb: Math.max(1, Math.round(saved.size / 1024)) });
+  }
+  const { before, after } = await updateBranding({ [slot]: name });
+  await auditBranding(g.viewer.id, g.ip, before, after);
+  updateTag("branding");
+  return done(message);
 }
 
 /* ---------- home slider banners ---------- */

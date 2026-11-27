@@ -3,6 +3,7 @@ import { errorsT } from "@/i18n/server";
 import { randomBytes } from "node:crypto";
 import { detectImageType, IMAGE_MIME } from "@/domain/banner";
 import { q1, run } from "@/server/db";
+import { compressImage, type ImageProfile } from "@/server/images";
 import { getFirst, gridStore, putWithFallback, removeAll, type MediaFile, type MediaKind, type MediaStore } from "@/server/media-store";
 import { MEDIA_BUCKET, mongoDb } from "@/server/mongo";
 
@@ -50,16 +51,17 @@ async function stores(): Promise<MediaStore[]> {
 export async function saveImage(
   bytes: Uint8Array,
   prefix: string,
-  { kind = "banner", ownerId = null }: { kind?: MediaKind; ownerId?: number | null } = {},
-): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  { kind = "banner", ownerId = null, profile = kind }: { kind?: MediaKind; ownerId?: number | null; profile?: ImageProfile } = {},
+): Promise<{ ok: true; name: string; width: number; height: number; size: number } | { ok: false; error: string }> {
   const e = (await errorsT()).upload;
   if (bytes.length === 0) return { ok: false, error: e.empty };
   if (bytes.length > MAX_UPLOAD_BYTES) return { ok: false, error: e.tooBig };
-  const type = detectImageType(bytes);
-  if (!type) return { ok: false, error: e.type };
-  const name = `${prefix.replace(/[^a-z0-9-]/g, "").slice(0, 20)}-${randomBytes(8).toString("hex")}.${type}`;
-  await putWithFallback(await stores(), { name, bytes: Buffer.from(bytes), mime: IMAGE_MIME[type], kind, ownerId, createdAt: Date.now() });
-  return { ok: true, name };
+  if (!detectImageType(bytes)) return { ok: false, error: e.type };
+  const image = await compressImage(bytes, profile);
+  if (!image.ok) return { ok: false, error: { corrupt: e.type, tooSmall: e.tooSmall, notSquare: e.notSquare }[image.reason] };
+  const name = `${prefix.replace(/[^a-z0-9-]/g, "").slice(0, 20)}-${randomBytes(8).toString("hex")}.${image.ext}`;
+  await putWithFallback(await stores(), { name, bytes: image.bytes, mime: IMAGE_MIME[image.ext], kind, ownerId, createdAt: Date.now() });
+  return { ok: true, name, width: image.width, height: image.height, size: image.bytes.length };
 }
 
 type Cached = { bytes: Buffer; type: string; kind: MediaKind; ownerId: number | null };

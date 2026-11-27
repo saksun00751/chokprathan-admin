@@ -1,5 +1,6 @@
 /** Back-office menu data. Plain module so the server can read it to filter by permission. */
 import {
+  AppWindow,
   Ban,
   Banknote,
   BarChart3,
@@ -14,7 +15,6 @@ import {
   History,
   Images,
   Landmark,
-  Megaphone,
   LayoutDashboard,
   Newspaper,
   Package,
@@ -22,7 +22,6 @@ import {
   ReceiptText,
   ScrollText,
   Settings,
-  ShieldCheck,
   Sparkles,
   Ticket,
   UserCog,
@@ -54,11 +53,10 @@ type ItemKey =
   | "banners"
   | "news"
   | "theme"
+  | "branding"
   | "settings"
   | "staff"
-  | "audit"
-  | "whatsNew"
-  | "security";
+  | "audit";
 /** `also`: other permissions that each open the item on their own. */
 export type Item = { href: string; key: ItemKey; icon: LucideIcon; need: Permission | null; also?: Permission[]; badge?: "finance" | "results" };
 
@@ -123,11 +121,10 @@ export const NAV_GROUPS: { key: "overview" | "finance" | "lotto" | "lottoSetting
     key: "system",
     items: [
       { href: "/theme", key: "theme", icon: Palette, need: "theme.manage" },
+      { href: "/branding", key: "branding", icon: AppWindow, need: "settings.manage" },
       { href: "/settings", key: "settings", icon: Settings, need: "settings.manage" },
       { href: "/staff", key: "staff", icon: UserCog, need: "staff.manage" },
       { href: "/audit", key: "audit", icon: ScrollText, need: "audit.view" },
-      { href: "/whats-new", key: "whatsNew", icon: Megaphone, need: null },
-      { href: "/security", key: "security", icon: ShieldCheck, need: null },
     ],
   },
 ];

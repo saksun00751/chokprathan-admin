@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, LogOut } from "lucide-react";
+import { ExternalLink, Megaphone } from "lucide-react";
 import { io } from "next/cache";
 import { Suspense } from "react";
 import { SELF_DRAWN_SQL } from "@/domain/auto-result";
-import { LogoMark } from "@/components/brand/logo";
+import { BrandMark } from "@/components/brand/logo";
 import { ActiveAdminNav, AdminNav, type NavState } from "@/components/admin/nav";
 import { ConfirmProvider } from "@/components/admin/confirm";
 import { NAV_GROUPS } from "@/components/admin/nav-items";
+import { ProfileMenu } from "@/components/admin/profile-menu";
 import { LanguageSwitcher } from "@/components/shell/language-switcher";
 import { SessionWatch } from "@/components/shell/session-watch";
 import { Skeleton } from "@/components/ui/primitives";
@@ -15,7 +16,6 @@ import { fmt } from "@/i18n/format";
 import { Provide } from "@/i18n/provide";
 import { getI18n } from "@/i18n/rsc";
 import { q1 } from "@/server/db";
-import { logoutAction } from "@/server/actions/auth";
 import { requireEmployeeAllowingPasswordChange } from "@/server/data/admin";
 import { can } from "@/server/services/employee-auth";
 import { getEmployee, needsTotpSetup } from "@/server/session";
@@ -83,17 +83,6 @@ async function AdminGate({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-async function AdminName() {
-  const [viewer, { t }] = await Promise.all([getEmployee(), getI18n()]);
-  if (!viewer) return null;
-  return (
-    <span className="flex min-w-0 flex-col text-right leading-tight">
-      <span className="max-w-40 truncate text-sm font-medium text-ink">{viewer.name || viewer.username}</span>
-      <span className="max-w-40 truncate text-xs text-ink-3">{viewer.roleName ?? t.admin.shell.staff}</span>
-    </span>
-  );
-}
-
 export default async function AdminLayout({ children }: LayoutProps<"/[lang]">) {
   const { t } = await getI18n();
   const sh = t.admin.shell;
@@ -105,7 +94,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/[lang]">) 
         <div className="min-h-dvh bg-canvas lg:grid lg:grid-cols-[244px_minmax(0,1fr)]">
           <aside className="sticky top-0 hidden h-dvh flex-col bg-ink text-white lg:flex">
             <Link href="/" className="flex h-16 shrink-0 items-center gap-2.5 px-5">
-              <LogoMark className="size-7" />
+              <BrandMark />
               <span className="font-semibold whitespace-nowrap">{sh.title}</span>
             </Link>
             <Suspense fallback={<AdminNav pathname={null} state={null} variant="side" />}>
@@ -117,7 +106,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/[lang]">) 
             <header className="sticky top-0 z-30 border-b border-line bg-surface">
               <div className="flex h-14 items-center gap-3 px-4 lg:px-8">
                 <Link href="/" className="flex items-center gap-2 lg:hidden">
-                  <LogoMark className="size-7" />
+                  <BrandMark />
                   <span className="font-semibold">{sh.title}</span>
                 </Link>
                 <div className="flex-1" />
@@ -132,21 +121,17 @@ export default async function AdminLayout({ children }: LayoutProps<"/[lang]">) 
                     <span className="hidden sm:inline">{sh.viewSite}</span>
                   </a>
                 )}
+                {/* For every signed-in employee, so it sits in the header and not in the permission-filtered menu. */}
+                <Link
+                  href="/whats-new"
+                  aria-label={sh.items.whatsNew}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium text-ink-2 hover:bg-panel hover:text-ink"
+                >
+                  <Megaphone className="size-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">{sh.items.whatsNew}</span>
+                </Link>
                 <LanguageSwitcher />
-                <div className="hidden sm:block">
-                  <Suspense fallback={null}>
-                    <AdminName />
-                  </Suspense>
-                </div>
-                <form action={logoutAction}>
-                  <button
-                    type="submit"
-                    className="inline-flex h-9 items-center gap-1.5 rounded-control px-2.5 text-sm font-medium text-danger hover:bg-danger-soft"
-                  >
-                    <LogOut className="size-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">{sh.logout}</span>
-                  </button>
-                </form>
+                <ProfileMenu />
               </div>
               <div className="lg:hidden">
                 <Suspense fallback={<AdminNav pathname={null} state={null} variant="top" />}>

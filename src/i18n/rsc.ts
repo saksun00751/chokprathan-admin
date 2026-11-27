@@ -1,4 +1,6 @@
 import { lang as rootLang } from "next/root-params";
+import { applyAdminBranding } from "@/domain/branding";
+import { getBranding } from "@/server/branding";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "./config";
 import { loadDict, type Dict } from "./dictionaries";
 
@@ -13,7 +15,8 @@ export async function getLang(): Promise<Locale> {
 
 export async function getI18n(): Promise<{ lang: Locale; t: Dict }> {
   const lang = await getLang();
-  return { lang, t: await loadDict(lang) };
+  const [dict, branding] = await Promise.all([loadDict(lang), getBranding()]);
+  return { lang, t: applyAdminBranding(dict, branding, lang) };
 }
 
 type PageMetaKey = { [K in keyof Dict["meta"]]: Dict["meta"][K] extends { title: string } ? K : never }[keyof Dict["meta"]];

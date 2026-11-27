@@ -1,4 +1,4 @@
-import { LogoMark } from "@/components/brand/logo";
+import { BrandMark } from "@/components/brand/logo";
 import { LanguageSwitcher } from "@/components/shell/language-switcher";
 import { Provide } from "@/i18n/provide";
 import { getI18n } from "@/i18n/rsc";
@@ -14,7 +14,7 @@ export default async function LoginLayout({ children }: LayoutProps<"/[lang]/log
       <main className="flex flex-1 items-start justify-center px-5 pt-6 pb-16 sm:items-center">
         <div className="w-full max-w-[400px] rounded-card bg-surface p-7 text-ink shadow-float">
           <div className="mb-1 flex items-center gap-2.5">
-            <LogoMark className="size-8" />
+            <BrandMark className="h-8" />
             <span className="text-lg font-semibold">{t.console.heading}</span>
           </div>
           <Provide ns={["console"]}>{children}</Provide>

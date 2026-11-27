@@ -1,4 +1,5 @@
 import { getI18n } from "@/i18n/rsc";
+import { getBranding } from "@/server/branding";
 
 /** Ticket silhouette with a perforated stub and a gold coin. */
 export function LogoMark({ className = "size-8" }: { className?: string }) {
@@ -21,6 +22,15 @@ export function LogoMark({ className = "size-8" }: { className?: string }) {
   );
 }
 
+/** The uploaded back-office logo (else the site logo), or the built-in mark. `className` sets the height. */
+export async function BrandMark({ className = "h-7" }: { className?: string }) {
+  const { adminLogo, logo } = await getBranding();
+  const file = adminLogo ?? logo;
+  if (!file) return <LogoMark className={`aspect-square w-auto shrink-0 ${className}`} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/media/${file}`} alt="" className={`w-auto max-w-40 shrink-0 object-contain ${className}`} />;
+}
+
 /** Mark plus the brand name in the page's language (Server Component). */
 export async function Logo({
   className = "",
@@ -35,7 +45,7 @@ export async function Logo({
   const { t } = await getI18n();
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
-      <LogoMark className="size-8 shrink-0" />
+      <BrandMark className="h-8" />
       <span
         className={`whitespace-nowrap text-lg font-semibold tracking-tight ${tone === "white" ? "text-white" : "text-ink"} ${nameClassName}`}
       >

@@ -69,7 +69,8 @@ export function Sheet({
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
-          {footer && <div className="safe-bottom border-t border-line bg-surface px-5 pt-3 pb-4">{footer}</div>}
+          {/* One padding rule for the bottom: 1rem, or the phone's home-indicator space when that is larger. */}
+          {footer && <div className="border-t border-line bg-surface px-5 pt-3 pb-[max(env(safe-area-inset-bottom),1rem)]">{footer}</div>}
         </div>
       )}
     </dialog>

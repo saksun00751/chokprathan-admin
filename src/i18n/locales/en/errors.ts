@@ -57,6 +57,8 @@ export const errors: typeof th = {
     staffMix: "Staff passwords need both letters and numbers",
   },
   account: {
+    avatarSaved: "Avatar changed",
+    avatarNotReady: "Can't save yet: an administrator has to update the database first",
     tooOften: "Too many attempts. Please wait {wait}.",
     newShort: "New password must be at least 8 characters",
     tooLong: "Password is too long",
@@ -73,7 +75,7 @@ export const errors: typeof th = {
     failed: "Couldn't send the SMS. Please try again.",
     notConfigured: "SMS isn't set up yet. Please contact staff.",
   },
-  upload: { empty: "No image file found", tooBig: "Images must be 2 MB or smaller", type: "Only PNG, JPG, and WEBP files are supported" },
+  upload: { empty: "No image file found", tooBig: "Images must be 2 MB or smaller", type: "Only PNG, JPG, and WEBP files are supported", tooSmall: "The image is too small. See the minimum size under the upload button.", notSquare: "The image must be square" },
   wallet: {
     blocked: "Withdrawals are blocked on this account. Please contact staff.",
     depositBurst: "Too many deposits created. Try again in {wait}.",
@@ -391,6 +393,9 @@ export const errors: typeof th = {
     settingsSaved: "Settings saved",
     themeNotFound: "Theme not found",
     themeSaved: "Theme changed. Every page uses the new colours now.",
+    brandingSaved: "Saved. The site shows the new values within about a minute.",
+    brandingImageSaved: "Image saved: {width}×{height} px, {kb} KB",
+    brandingImageReset: "Back to the built-in image",
     bannerImageFailed: "Text saved, but the image couldn't be used: {error}",
     bannerAdded: "Banner added",
     bannerSaved: "Banner saved",

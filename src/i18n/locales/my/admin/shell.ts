@@ -33,9 +33,11 @@ export const shell: typeof th = {
     banners: "ပင်မစာမျက်နှာ ဘန်နာ",
     news: "သတင်း",
     theme: "အရောင်အပြင်အဆင်",
+    branding: "အမည်၊ လိုဂိုနှင့် meta",
     settings: "ဝဘ်ဆိုက် ဆက်တင်",
     staff: "ဝန်ထမ်းနှင့် ခွင့်ပြုချက်",
     audit: "လုပ်ဆောင်မှု မှတ်တမ်း",
+    profile: "ပရိုဖိုင်",
     security: "အကောင့် လုံခြုံရေး",
   },
   denied: {

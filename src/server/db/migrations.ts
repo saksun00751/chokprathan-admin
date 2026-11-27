@@ -96,6 +96,11 @@ export const MIGRATIONS: Migration[] = [
       ) ${T}`,
     ],
   },
+  {
+    version: 2,
+    name: "employee avatar",
+    statements: ["ALTER TABLE employees ADD COLUMN IF NOT EXISTS avatar VARCHAR(16) NULL"],
+  },
 ];
 
 /** Every table this app creates, children first (tests truncate and drop in this order). */

@@ -33,9 +33,11 @@ export const shell: typeof th = {
     banners: "Home banners",
     news: "News",
     theme: "Colour theme",
+    branding: "Name, logo and meta",
     settings: "Site settings",
     staff: "Staff & permissions",
     audit: "Activity log",
+    profile: "Profile",
     security: "Account security",
   },
   denied: {

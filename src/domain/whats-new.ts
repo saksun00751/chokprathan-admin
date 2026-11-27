@@ -14,7 +14,7 @@ export type Kind = (typeof KINDS)[number];
 export type WhatsNewKey =
   | "memberLottos" | "memberNames" | "memberYiki" | "memberNoYiki"
   | "bills" | "resultHistory" | "exposure" | "transactions" | "referrals" | "whatsNew" | "groupSwitch" | "nameEditor"
-  | "resultEntry" | "menu";
+  | "resultEntry" | "menu" | "branding" | "imageCompress" | "profile" | "avatarMenu";
 
 export interface WhatsNewItem {
   key: WhatsNewKey;
@@ -49,6 +49,10 @@ export const RELEASES: readonly Release[] = [
       { key: "nameEditor", area: "admin", kind: "added", link: { href: "/lottos", need: "lottos.manage" } },
       { key: "resultEntry", area: "admin", kind: "changed", link: { href: "/results", need: "rounds.result" } },
       { key: "menu", area: "admin", kind: "changed" },
+      { key: "branding", area: "admin", kind: "added", link: { href: "/branding", need: "settings.manage" } },
+      { key: "imageCompress", area: "admin", kind: "changed" },
+      { key: "profile", area: "admin", kind: "added" },
+      { key: "avatarMenu", area: "admin", kind: "changed" },
     ],
   },
 ];

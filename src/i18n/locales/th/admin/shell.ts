@@ -32,9 +32,11 @@ export const shell = {
     banners: "แบนเนอร์หน้าแรก",
     news: "ข่าวสาร",
     theme: "ธีมสี",
+    branding: "ตั้งค่าหน้าเว็บ",
     settings: "ตั้งค่าเว็บ",
     staff: "พนักงานและสิทธิ์",
     audit: "บันทึกการทำงาน",
+    profile: "โปรไฟล์",
     security: "ความปลอดภัยบัญชี",
   },
   denied: {

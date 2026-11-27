@@ -4,9 +4,11 @@ import { notFound } from "next/navigation";
 import { lang as rootLang } from "next/root-params";
 import { ArtDefs } from "@/components/art/defs";
 import { ToastProvider } from "@/components/ui/toast";
+import { applyAdminBranding } from "@/domain/branding";
 import { I18nProvider } from "@/i18n/client";
 import { LOCALES, LOCALE_META, isLocale, type Locale } from "@/i18n/config";
 import { loadDict } from "@/i18n/dictionaries";
+import { getBranding } from "@/server/branding";
 import { getThemeId } from "@/server/theme";
 import "../globals.css";
 
@@ -38,13 +40,18 @@ export const instant = false;
 export async function generateMetadata(): Promise<Metadata> {
   const lang = await rootLang();
   if (!isLocale(lang)) return {};
-  const t = await loadDict(lang);
+  const [dict, branding] = await Promise.all([loadDict(lang), getBranding()]);
+  const t = applyAdminBranding(dict, branding, lang);
   const name = `${t.common.brand} ${t.console.heading}`;
+  const { icon } = branding;
   return {
     title: { default: name, template: `%s · ${name}` },
     applicationName: name,
     robots: { index: false, follow: false },
     formatDetection: { telephone: false },
+    ...(icon
+      ? { icons: { icon: [{ url: `/api/brand-icon?v=${icon}`, type: "image/png" }], apple: `/api/brand-icon?size=180&v=${icon}` } }
+      : {}),
   };
 }
 
@@ -58,7 +65,8 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
   const lang = await rootLang();
   if (!isLocale(lang)) notFound();
-  const [t, theme] = await Promise.all([loadDict(lang), getThemeId()]);
+  const [dict, theme, branding] = await Promise.all([loadDict(lang), getThemeId(), getBranding()]);
+  const t = applyAdminBranding(dict, branding, lang);
   // Client Components get the shared namespaces; the back-office pages and the sign-in page add their own.
   const clientDict = { common: t.common, lotto: t.lotto, site: t.site };
   return (

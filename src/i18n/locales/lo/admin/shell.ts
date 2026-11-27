@@ -33,9 +33,11 @@ export const shell: typeof th = {
     banners: "ແບນເນີໜ້າຫຼັກ",
     news: "ຂ່າວສານ",
     theme: "ທີມສີ",
+    branding: "ຊື່ ໂລໂກ້ ແລະ meta",
     settings: "ຕັ້ງຄ່າເວັບ",
     staff: "ພະນັກງານ ແລະ ສິດ",
     audit: "ບັນທຶກການເຮັດວຽກ",
+    profile: "ໂປຣໄຟລ໌",
     security: "ຄວາມປອດໄພບັນຊີ",
   },
   denied: {

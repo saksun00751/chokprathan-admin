@@ -57,6 +57,8 @@ export const errors: typeof th = {
     staffMix: "ລະຫັດຜ່ານພະນັກງານຕ້ອງມີທັງຕົວອັກສອນ ແລະ ຕົວເລກ",
   },
   account: {
+    avatarSaved: "ປ່ຽນ avatar ແລ້ວ",
+    avatarNotReady: "ຍັງບັນທຶກບໍ່ໄດ້ ຜູ້ດູແລລະບົບຕ້ອງອັບເດດຖານຂໍ້ມູນກ່ອນ",
     tooOften: "ລອງເລື້ອຍເກີນໄປ ລໍຖ້າ {wait}",
     newShort: "ລະຫັດຜ່ານໃໝ່ຢ່າງໜ້ອຍ 8 ໂຕ",
     tooLong: "ລະຫັດຜ່ານຍາວເກີນໄປ",
@@ -73,7 +75,7 @@ export const errors: typeof th = {
     failed: "ສົ່ງ SMS ບໍ່ສຳເລັດ ກະລຸນາລອງໃໝ່ອີກຄັ້ງ",
     notConfigured: "ລະບົບສົ່ງ SMS ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ ກະລຸນາຕິດຕໍ່ພະນັກງານ",
   },
-  upload: { empty: "ບໍ່ພົບໄຟລ໌ຮູບ", tooBig: "ໄຟລ໌ຮູບຕ້ອງບໍ່ເກີນ 2 MB", type: "ຮອງຮັບສະເພາະໄຟລ໌ PNG JPG ແລະ WEBP" },
+  upload: { empty: "ບໍ່ພົບໄຟລ໌ຮູບ", tooBig: "ໄຟລ໌ຮູບຕ້ອງບໍ່ເກີນ 2 MB", type: "ຮອງຮັບສະເພາະໄຟລ໌ PNG JPG ແລະ WEBP", tooSmall: "ຮູບນ້ອຍເກີນໄປ ເບິ່ງຂະໜາດຂັ້ນຕ່ຳໃຕ້ປຸ່ມອັບໂຫຼດ", notSquare: "ຮູບຕ້ອງເປັນສີ່ຫຼ່ຽມຈັດຕຸລັດ" },
   wallet: {
     blocked: "ບັນຊີນີ້ຖືກລະງັບການຖອນເງິນ ກະລຸນາຕິດຕໍ່ເຈົ້າໜ້າທີ່",
     depositBurst: "ສ້າງລາຍການຝາກເລື້ອຍເກີນໄປ ລອງໃໝ່ໃນອີກ {wait}",
@@ -391,6 +393,9 @@ export const errors: typeof th = {
     settingsSaved: "ບັນທຶກການຕັ້ງຄ່າແລ້ວ",
     themeNotFound: "ບໍ່ພົບທີມນີ້",
     themeSaved: "ປ່ຽນທີມແລ້ວ ທຸກໜ້າໃຊ້ສີໃໝ່ທັນທີ",
+    brandingSaved: "ບັນທຶກແລ້ວ ໜ້າເວັບຈະໃຊ້ຄ່າໃໝ່ພາຍໃນປະມານ 1 ນາທີ",
+    brandingImageSaved: "ບັນທຶກຮູບແລ້ວ {width}×{height} ພິກເຊວ {kb} KB",
+    brandingImageReset: "ກັບໄປໃຊ້ຮູບເດີມແລ້ວ",
     bannerImageFailed: "ບັນທຶກຂໍ້ຄວາມແລ້ວ ແຕ່ຮູບໃຊ້ບໍ່ໄດ້: {error}",
     bannerAdded: "ເພີ່ມແບນເນີແລ້ວ",
     bannerSaved: "ບັນທຶກແບນເນີແລ້ວ",
