@@ -5,12 +5,15 @@ import { fmt, formatDateTime } from "@/i18n/format";
 import { KeyRound, Pencil, Plus, ShieldCheck, ShieldOff, Trash2, UserPlus } from "lucide-react";
 import { useState, useTransition, type ReactNode } from "react";
 import { useConfirm } from "@/components/admin/confirm";
+import { PortraitField } from "@/components/admin/portrait-field";
+import { StaffAvatar } from "@/components/admin/staff-avatar";
 import { Button } from "@/components/ui/button";
 import { Field, FormError, Input, Select, Textarea } from "@/components/ui/field";
 import { Badge } from "@/components/ui/primitives";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { changedRows } from "@/domain/confirm";
+import type { Avatar } from "@/domain/avatar";
 import { ALL, PERMISSIONS, canActOnRole, canGrant, type Rank } from "@/domain/permissions";
 import type { AnyActionResult } from "@/lib/action";
 import { createStaffAction, deleteRoleAction, resetStaffPasswordAction, resetStaffTotpAction, saveRoleAction, updateStaffAction } from "@/server/actions/admin";
@@ -131,9 +134,11 @@ export function StaffTable({ staff, roles, viewer }: { staff: StaffMember[]; rol
 function CreateStaffSheet({ open, onClose, roles }: { open: boolean; onClose: () => void; roles: StaffRole[] }) {
   const { t } = useI18n();
   const st = t.admin.people.staff;
+  const pf = t.admin.people.profile;
   const k = t.admin.shell.confirm;
   const ask = useConfirm();
   const { pending, run } = useRun();
+  const [avatar, setAvatar] = useState<Avatar | null>(null);
   const [v, setV] = useState({ username: "", name: "", password: "", roleId: String(roles.find((r) => !r.isOwner)?.id ?? roles[0]?.id ?? "") });
   return (
     <Sheet
@@ -152,13 +157,15 @@ function CreateStaffSheet({ open, onClose, roles }: { open: boolean; onClose: ()
                 [st.username, v.username || "-"],
                 [st.name, v.name || "-"],
                 [st.role, roles.find((r) => String(r.id) === v.roleId)?.name ?? "-"],
+                [pf.avatar, avatar ? <StaffAvatar key={avatar} id={avatar} className="size-12 rounded-full" /> : pf.useLetter],
               ],
             });
             if (!answer.ok) return;
             run(
-              () => createStaffAction({ ...v, roleId: Number(v.roleId) }),
+              () => createStaffAction({ ...v, roleId: Number(v.roleId), avatar }),
               () => {
                 setV({ username: "", name: "", password: "", roleId: v.roleId });
+                setAvatar(null);
                 onClose();
               },
             );
@@ -187,6 +194,10 @@ function CreateStaffSheet({ open, onClose, roles }: { open: boolean; onClose: ()
             ))}
           </Select>
         </Field>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-ink">{pf.avatar}</p>
+          <PortraitField value={avatar} name={v.name || v.username} disabled={pending} onChange={setAvatar} />
+        </div>
       </div>
     </Sheet>
   );
@@ -195,10 +206,13 @@ function CreateStaffSheet({ open, onClose, roles }: { open: boolean; onClose: ()
 function EditStaffSheet({ member, roles, isSelf, onClose }: { member: StaffMember; roles: StaffRole[]; isSelf: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const st = t.admin.people.staff;
+  const pf = t.admin.people.profile;
   const k = t.admin.shell.confirm;
   const ask = useConfirm();
   const toast = useToast();
   const { pending, run } = useRun();
+  const [avatar, setAvatar] = useState<Avatar | null>(member.avatar);
+  const picture = (id: Avatar | null) => (id ? <StaffAvatar id={id} className="size-12 rounded-full" /> : <span>{pf.useLetter}</span>);
   const who = `${member.name} (${member.username ?? ""})`;
   const roleName = (id: string) => roles.find((r) => String(r.id) === id)?.name ?? "-";
   const statusName = (x: string) => (x === "active" ? st.active : st.suspendOption);
@@ -220,16 +234,34 @@ function EditStaffSheet({ member, roles, isSelf, onClose }: { member: StaffMembe
               { label: st.role, before: roleName(String(member.roleId ?? "")), after: roleName(v.roleId) },
               { label: st.status, before: statusName(member.status), after: statusName(v.status) },
             ]);
-            if (rows.length === 0) {
+            const newPicture = avatar !== member.avatar;
+            if (rows.length === 0 && !newPicture) {
               toast.info(k.noChanges);
               return;
             }
             const answer = await ask({
               title: k.updateStaff,
               tone: v.status === "suspended" && member.status !== "suspended" ? "danger" : "default",
-              details: [[st.username, member.username ?? "-"], ...rows.map((r): [string, string] => [r.label, `${r.before} → ${r.after}`])],
+              details: [
+                [st.username, member.username ?? "-"],
+                ...rows.map((r): [string, string] => [r.label, `${r.before} → ${r.after}`]),
+                ...(newPicture
+                  ? [
+                      [
+                        pf.avatar,
+                        <span key="avatar" className="inline-flex items-center gap-2">
+                          {picture(member.avatar)} → {picture(avatar)}
+                        </span>,
+                      ] satisfies [string, ReactNode],
+                    ]
+                  : []),
+              ],
             });
-            if (answer.ok) run(() => updateStaffAction(member.id, { name: v.name, roleId: Number(v.roleId), status: v.status }), onClose);
+            if (answer.ok)
+              run(
+                () => updateStaffAction(member.id, { name: v.name, roleId: Number(v.roleId), status: v.status, ...(newPicture ? { avatar } : {}) }),
+                onClose,
+              );
           }}
         >
           {st.save}
@@ -255,6 +287,10 @@ function EditStaffSheet({ member, roles, isSelf, onClose }: { member: StaffMembe
             <option value="suspended">{st.suspendOption}</option>
           </Select>
         </Field>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-ink">{pf.avatar}</p>
+          <PortraitField value={avatar} name={v.name || member.username || ""} disabled={pending} onChange={setAvatar} />
+        </div>
 
         <div className="rounded-card border border-line p-3">
           <p className="text-sm font-medium text-ink">{st.newPassword}</p>

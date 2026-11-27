@@ -125,7 +125,7 @@ export const ops: typeof th = {
       menu: "Side menu: new sections",
       branding: "New page for the site name, meta text, logo, icon and share image",
       imageCompress: "Uploaded images on both sites are compressed before saving",
-      profile: "Profile page: pick an emoji as your avatar",
+      profile: "Profile page: choose an office staff picture as your avatar",
       avatarMenu: "Top right: What's new moved beside the language button; account security and sign-out are in the avatar menu",
     },
   },

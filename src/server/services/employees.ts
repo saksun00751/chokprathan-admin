@@ -1,4 +1,6 @@
 import "server-only";
+import type { Avatar } from "@/domain/avatar";
+import { readAvatars, saveAvatar } from "@/server/services/profile";
 import { errorsT } from "@/i18n/server";
 import { ALL, canActOnRole, isPermission, mayEditRole, type Rank } from "@/domain/permissions";
 import { json, q, q1, run, tx } from "@/server/db";
@@ -18,6 +20,8 @@ export interface StaffMember {
   id: number;
   username: string;
   name: string;
+  /** The chosen portrait; null shows the first letter of the name. */
+  avatar: Avatar | null;
   status: "active" | "suspended";
   roleId: number | null;
   roleName: string | null;
@@ -83,8 +87,10 @@ export async function listStaff(): Promise<StaffMember[]> {
     `SELECT e.id, e.username, e.name, e.status, e.employee_role_id, r.name AS role_name, r.is_owner, e.totp_enabled, e.last_login_at, e.last_ip, e.created_at
      FROM employees e LEFT JOIN employee_roles r ON r.id = e.employee_role_id ORDER BY e.created_at`,
   );
+  const avatars = await readAvatars();
   return rows.map((r) => ({
     id: r.id,
+    avatar: avatars.get(r.id) ?? null,
     username: r.username,
     name: r.name,
     status: r.status,
@@ -169,7 +175,7 @@ export const USERNAME = /^[a-z][a-z0-9._-]{2,39}$/;
 
 /** Create a staff account. It must change its password at first sign-in. */
 export async function createStaff(
-  input: { username: string; name: string; password: string; roleId: number },
+  input: { username: string; name: string; password: string; roleId: number; avatar?: Avatar | null },
   /** null only for the installer, which creates the first owner */
   actor: StaffActor | null,
   { mustChange = true, now = Date.now() }: { mustChange?: boolean; now?: number } = {},
@@ -198,6 +204,8 @@ export async function createStaff(
         now,
       )
     ).lastId;
+    // Kept apart from the insert: a database without the avatar column still creates the account.
+    if (input.avatar) await saveAvatar(id, input.avatar);
     await audit(actor?.id ?? null, "staff.create", `user:${id}`, { username, roleId: input.roleId }, now);
     return { ok: true, id };
   } catch (error) {
@@ -218,7 +226,8 @@ async function activeOwners(exceptId?: number): Promise<number> {
 
 export async function updateStaff(
   id: number,
-  input: { name: string; roleId: number; status: "active" | "suspended" },
+  /** `avatar` left out keeps the picture as it is. */
+  input: { name: string; roleId: number; status: "active" | "suspended"; avatar?: Avatar | null },
   actor: StaffActor,
 ): Promise<{ ok: true } | Fail> {
   const e = await errorsT();
@@ -238,6 +247,8 @@ export async function updateStaff(
     if (id === actor.id && input.status !== "active") return { ok: false as const, error: e.staff.selfSuspend };
     const name = input.name.trim().slice(0, 100);
     if (name.length < 2) return { ok: false as const, error: e.staff.name };
+    // First, so that nothing else changes when the picture cannot be stored.
+    if (input.avatar !== undefined && !(await saveAvatar(id, input.avatar))) return { ok: false as const, error: e.account.avatarNotReady };
     await run("UPDATE employees SET name = ?, employee_role_id = ?, status = ? WHERE id = ?", name, input.roleId, input.status, id);
     if (input.status !== "active" || input.roleId !== current.employee_role_id) await revokeAllEmployeeSessions(id);
     await audit(actor.id, "staff.update", `user:${id}`, input);

@@ -24,6 +24,7 @@ import { formatBaht } from "@/core/rules/money";
 import type { Permission } from "@/domain/permissions";
 import { validateProfile } from "@/core/rules/pricing";
 import { isThemeId } from "@/domain/themes";
+import { avatarOf, isAvatar } from "@/domain/avatar";
 import { cleanBrandText, isBrandSlot, type BrandSlot, type BrandText } from "@/domain/branding";
 import type { BetTypeCode, ManualLimit, RiskProfile, Schedule } from "@/core/rules/types";
 import type { ActionResult } from "@/lib/action";
@@ -1095,21 +1096,26 @@ export async function deleteBannerAction(id: number): Promise<ActionResult> {
 
 /* ---------- staff and roles ---------- */
 
-export async function createStaffAction(input: { username: string; name: string; password: string; roleId: number }): Promise<ActionResult> {
+export async function createStaffAction(input: { username: string; name: string; password: string; roleId: number; avatar?: string | null }): Promise<ActionResult> {
   const g = await gate("staff.manage");
   if ("refusal" in g) return g.refusal;
   const r = await createStaff(
-    { username: String(input?.username ?? ""), name: String(input?.name ?? ""), password: String(input?.password ?? ""), roleId: Number(input?.roleId) },
+    { username: String(input?.username ?? ""), name: String(input?.name ?? ""), password: String(input?.password ?? ""), roleId: Number(input?.roleId), avatar: avatarOf(input?.avatar) },
     g.viewer,
   );
   return r.ok ? done(g.e.admin.staffAdded) : { ok: false, error: r.error };
 }
 
-export async function updateStaffAction(id: number, input: { name: string; roleId: number; status: "active" | "suspended" }): Promise<ActionResult> {
+export async function updateStaffAction(
+  id: number,
+  input: { name: string; roleId: number; status: "active" | "suspended"; avatar?: string | null },
+): Promise<ActionResult> {
   const g = await gate("staff.manage");
   if ("refusal" in g) return g.refusal;
   if (!isId(id) || !isId(input?.roleId) || (input.status !== "active" && input.status !== "suspended")) return { ok: false, error: g.e.generic.invalid };
-  const r = await updateStaff(id, { name: String(input.name ?? ""), roleId: input.roleId, status: input.status }, g.viewer);
+  const { avatar } = input;
+  if (avatar !== undefined && avatar !== null && !isAvatar(avatar)) return { ok: false, error: g.e.generic.invalid };
+  const r = await updateStaff(id, { name: String(input.name ?? ""), roleId: input.roleId, status: input.status, avatar }, g.viewer);
   return r.ok ? done(g.e.admin.staffSaved) : { ok: false, error: r.error };
 }
 

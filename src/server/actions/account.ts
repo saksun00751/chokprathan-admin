@@ -86,7 +86,7 @@ export async function disableTotpAction(password: string): Promise<ActionResult>
   return { ok: true, message: e.account.totpOff };
 }
 
-/** The emoji shown as the employee's avatar; null goes back to the first letter of the name. */
+/** The portrait shown as the employee's avatar; null goes back to the first letter of the name. */
 export async function saveAvatarAction(avatar: string | null): Promise<ActionResult> {
   const e = await errorsT();
   const viewer = await getEmployee();

@@ -1,6 +1,6 @@
 import "server-only";
-import { avatarOf, type Avatar } from "@/domain/avatar";
-import { q1, run, tolerateMissingColumn } from "@/server/db";
+import { avatarOf, isAvatar, type Avatar } from "@/domain/avatar";
+import { q, q1, run, tolerateMissingColumn } from "@/server/db";
 
 /*
  * The avatar column comes with admin migration 2. It is read on its own, not with the session, so
@@ -18,6 +18,14 @@ export async function readAvatar(employeeId: number): Promise<Stored> {
     },
     { ready: false, avatar: null },
   );
+}
+
+/** Every employee who picked one; empty before the migration has run. */
+export async function readAvatars(): Promise<Map<number, Avatar>> {
+  return tolerateMissingColumn<Map<number, Avatar>>(async () => {
+    const rows = await q<{ id: number; avatar: string }>("SELECT id, avatar FROM employees WHERE avatar IS NOT NULL");
+    return new Map(rows.flatMap((r) => (isAvatar(r.avatar) ? [[r.id, r.avatar] as const] : [])));
+  }, new Map());
 }
 
 /** False when the database has not been migrated yet. */
