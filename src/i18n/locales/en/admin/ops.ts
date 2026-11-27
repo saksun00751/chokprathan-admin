@@ -131,6 +131,7 @@ export const ops: typeof th = {
       portraits: "25 new avatar pictures replace the emoji",
       avatarConfirm: "Profile page: confirms before changing your picture",
       avatarButton: "Larger picture button at the top right, with an arrow showing it opens a menu",
+      logoutConfirm: "Log out: asks for confirmation first",
     },
   },
   rounds: {

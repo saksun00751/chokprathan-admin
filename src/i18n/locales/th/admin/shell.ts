@@ -128,6 +128,8 @@ export const shell = {
   bathUnit: "บาท",
   unlimited: "ไม่หมดอายุ",
   confirm: {
+    logout: "ออกจากระบบ?",
+    logoutNote: "คุณต้องการออกจากระบบใช่ไหม ถ้าจะใช้งานต่อต้องเข้าสู่ระบบใหม่",
     confirm: "ยืนยัน",
     cancel: "ยกเลิก",
     member: "สมาชิก",

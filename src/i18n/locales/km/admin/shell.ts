@@ -129,6 +129,8 @@ export const shell: typeof th = {
   bathUnit: "បាត",
   unlimited: "គ្មានផុតកំណត់",
   confirm: {
+    logout: "ចាកចេញ?",
+    logoutNote: "តើអ្នកចង់ចាកចេញមែនទេ? ដើម្បីបន្តប្រើ អ្នកត្រូវចូលម្ដងទៀត",
     confirm: "បញ្ជាក់",
     cancel: "បោះបង់",
     member: "សមាជិក",

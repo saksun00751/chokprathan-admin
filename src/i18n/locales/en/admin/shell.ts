@@ -129,6 +129,8 @@ export const shell: typeof th = {
   bathUnit: "baht",
   unlimited: "No expiry",
   confirm: {
+    logout: "Log out?",
+    logoutNote: "Do you want to log out? You will need to sign in again to continue.",
     confirm: "Confirm",
     cancel: "Cancel",
     member: "Member",

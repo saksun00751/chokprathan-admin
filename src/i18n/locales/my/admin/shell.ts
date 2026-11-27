@@ -136,6 +136,8 @@ export const shell: typeof th = {
   bathUnit: "ဘတ်",
   unlimited: "သက်တမ်းမကုန်",
   confirm: {
+    logout: "ထွက်မလား?",
+    logoutNote: "စနစ်မှ ထွက်လိုပါသလား? ဆက်သုံးရန် ပြန်လည်ဝင်ရောက်ရပါမည်",
     confirm: "အတည်ပြုသည်",
     cancel: "မလုပ်တော့ပါ",
     member: "အဖွဲ့ဝင်",

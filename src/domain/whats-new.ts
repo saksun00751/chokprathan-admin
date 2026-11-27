@@ -15,7 +15,7 @@ export type WhatsNewKey =
   | "memberLottos" | "memberNames" | "memberYiki" | "memberNoYiki"
   | "bills" | "resultHistory" | "exposure" | "transactions" | "referrals" | "whatsNew" | "groupSwitch" | "nameEditor"
   | "resultEntry" | "menu" | "branding" | "imageCompress" | "profile" | "avatarMenu"
-  | "staffPortrait" | "portraits" | "avatarConfirm" | "avatarButton";
+  | "staffPortrait" | "portraits" | "avatarConfirm" | "avatarButton" | "logoutConfirm";
 
 export interface WhatsNewItem {
   key: WhatsNewKey;
@@ -40,6 +40,7 @@ export const RELEASES: readonly Release[] = [
       { key: "portraits", area: "admin", kind: "changed" },
       { key: "avatarConfirm", area: "admin", kind: "changed" },
       { key: "avatarButton", area: "admin", kind: "changed" },
+      { key: "logoutConfirm", area: "admin", kind: "changed" },
     ],
   },
   {

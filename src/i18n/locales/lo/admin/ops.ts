@@ -131,6 +131,7 @@ export const ops: typeof th = {
       portraits: "ຮູບ avatar ຊຸດໃໝ່ 25 ແບບ ແທນອີໂມຈິ",
       avatarConfirm: "ໜ້າໂປຣໄຟລ໌: ຖາມຢືນຢັນກ່ອນປ່ຽນຮູບ",
       avatarButton: "ປຸ່ມຮູບມຸມຂວາເທິງໃຫຍ່ຂຶ້ນ ແລະ ມີລູກສອນບອກວ່າກົດເປີດເມນູໄດ້",
+      logoutConfirm: "ອອກຈາກລະບົບ: ຖາມຢືນຢັນກ່ອນ",
     },
   },
   rounds: {

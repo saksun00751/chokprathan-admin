@@ -129,6 +129,8 @@ export const shell: typeof th = {
   bathUnit: "ບາດ",
   unlimited: "ບໍ່ໝົດອາຍຸ",
   confirm: {
+    logout: "ອອກຈາກລະບົບ?",
+    logoutNote: "ທ່ານຕ້ອງການອອກຈາກລະບົບແມ່ນບໍ? ຖ້າຈະໃຊ້ງານຕໍ່ ຕ້ອງເຂົ້າສູ່ລະບົບໃໝ່",
     confirm: "ຢືນຢັນ",
     cancel: "ຍົກເລີກ",
     member: "ສະມາຊິກ",

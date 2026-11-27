@@ -1,10 +1,10 @@
-import { ChevronDown, LogOut, ShieldCheck, SquareUserRound, UserRound } from "lucide-react";
+import { ChevronDown, ShieldCheck, SquareUserRound, UserRound } from "lucide-react";
 import { Suspense } from "react";
 import { initial } from "@/components/admin/initial";
+import { LogoutButton } from "@/components/admin/logout-button";
 import { ProfileLink } from "@/components/admin/profile-link";
 import { StaffAvatar } from "@/components/admin/staff-avatar";
 import { getI18n } from "@/i18n/rsc";
-import { logoutAction } from "@/server/actions/auth";
 import { readAvatar } from "@/server/services/profile";
 import { getEmployee } from "@/server/session";
 
@@ -75,12 +75,7 @@ export async function ProfileMenu() {
             {t.admin.shell.items.security}
           </ProfileLink>
         </div>
-        <form action={logoutAction}>
-          <button type="submit" className="flex h-10 w-full items-center gap-2.5 rounded-control px-3 text-left text-sm font-medium text-danger hover:bg-danger-soft">
-            <LogOut className="size-4" aria-hidden="true" />
-            {t.admin.shell.logout}
-          </button>
-        </form>
+        <LogoutButton />
       </div>
     </>
   );
