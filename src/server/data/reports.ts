@@ -133,7 +133,7 @@ async function byLotto(s: RangeStats, R: ReportsDict): Promise<ReportTable> {
       const lotto = lottos.find((l) => l.id === id);
       const ggr = x.settled - x.payout;
       return {
-        lotto: lotto ? lottoShort(lotto, R.t) : "-",
+        lotto: lotto ? lottoShort(lotto, R.lang, R.t) : "-",
         group: lotto ? groupLabel(lotto.group) : "-",
         rounds: x.rounds,
         bills: x.bills,
@@ -173,7 +173,7 @@ async function byRound(r: DateRange, R: ReportsDict): Promise<ReportTable> {
       const lotto = lottos.find((l) => l.id === x.lottoId);
       return {
         closes: x.closesAt,
-        lotto: lotto ? lottoShort(lotto, R.t) : "-",
+        lotto: lotto ? lottoShort(lotto, R.lang, R.t) : "-",
         round: roundName({ roundNo: x.roundNo, closesAt: x.closesAt, plannedClose: x.plannedClose ?? null }, R.lang, R.t),
         status: reportRoundStatus(x.status, R.t),
         result: resultText(x.result),

@@ -303,6 +303,7 @@ export const errors: typeof th = {
       done: "ထီကြိမ် ဖန်တီးပြီးပါပြီ",
     },
     autoRoundsNeedsMigration: "ဒေတာဘေ့စ် မပံ့ပိုးသေးပါ။ အဖွဲ့ဝင်ဝဘ်ဆိုက်၏ migration 11 ကို အရင်လုပ်ဆောင်ပါ",
+    lottoNamesNeedMigration: "ဒေတာဘေ့စ်သည် ဘာသာစုံအမည်များကို မပံ့ပိုးသေးပါ။ အဖွဲ့ဝင်ဝဘ်ဆိုက်၏ migration 17 ကို အရင်လုပ်ဆောင်ပါ",
     lottoBadSlug: "ကုဒ်တွင် a-z၊ ဂဏန်း၊ - သာ ၂–၄၀ လုံး၊ အက္ခရာဖြင့် စရမည်",
     lottoSlugTaken: "ဤကုဒ်ကို အခြားထီ သုံးထားပြီးပါပြီ",
     lottoCreated: "{name} ထည့်ပြီးပါပြီ၊ ပိတ်ထားဆဲဖြစ်သည်",

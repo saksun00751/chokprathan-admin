@@ -65,7 +65,7 @@ async function breakdowns(s: RangeStats, t: Dict) {
       .slice(0, 8)
       .map(([id, x]) => {
         const lotto = lottos.find((l) => l.id === id);
-        return { id, name: lotto ? lottoShort(lotto, t) : "-", flag: lotto?.flag ?? null, bills: x.bills, stake: x.stake, settled: x.settled, payout: x.payout, ggr: x.settled - x.payout };
+        return { id, name: lotto ? lottoShort(lotto, lang, t) : "-", flag: lotto?.flag ?? null, bills: x.bills, stake: x.stake, settled: x.settled, payout: x.payout, ggr: x.settled - x.payout };
       }),
     topPlayers: top.map((p) => ({ id: p.u, name: people.get(p.u)?.name ?? "-", phone: maskPhone(people.get(p.u)?.phone ?? null), bills: p.bills, stake: p.stake, payout: p.payout })),
   };
@@ -99,7 +99,7 @@ async function liveRisk(now: number, lang: Locale, t: Dict) {
   return {
     watch: watch.map((w) => ({
       id: w.id,
-      lotto: ((l) => (l ? lottoShort(l, t) : "-"))(name(w.lotto_id)),
+      lotto: ((l) => (l ? lottoShort(l, lang, t) : "-"))(name(w.lotto_id)),
       flag: name(w.lotto_id)?.flag ?? null,
       label: roundName({ roundNo: w.round_no, closesAt: w.closes_at, plannedClose: w.planned_close }, lang, t),
       closesAt: w.closes_at,
@@ -109,7 +109,7 @@ async function liveRisk(now: number, lang: Locale, t: Dict) {
     })),
     awaiting: awaiting.map((a) => ({
       id: a.id,
-      lotto: ((l) => (l ? lottoName(l, t) : "-"))(name(a.lotto_id)),
+      lotto: ((l) => (l ? lottoName(l, lang, t) : "-"))(name(a.lotto_id)),
       flag: name(a.lotto_id)?.flag ?? null,
       label: roundName({ roundNo: a.round_no, closesAt: a.closes_at, plannedClose: a.planned_close }, lang, t),
       closesAt: a.closes_at,

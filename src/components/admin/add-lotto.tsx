@@ -11,6 +11,7 @@ import { groupName, mayMoveGroup, type LottoGroupInfo } from "@/domain/lotto-gro
 import { copyFromLotto, detailProblems, FLAG_CODES, scheduleProblem, suggestSlug, type DetailField } from "@/domain/new-lotto";
 import type { ResultFormat, Schedule } from "@/core/rules/types";
 import { useI18n } from "@/i18n/client";
+import { lottoName } from "@/i18n/labels";
 import { cn } from "@/lib/cn";
 import { createLottoAction } from "@/server/actions/admin";
 import type { Lotto } from "@/server/services/lottos";
@@ -172,7 +173,7 @@ export function AddLotto({ groups, lottos }: { groups: LottoGroupInfo[]; lottos:
                       <option value="">{al.copyNone}</option>
                       {sources.map((l) => (
                         <option key={l.id} value={l.id}>
-                          {l.name}
+                          {lottoName(l, lang, t)}
                         </option>
                       ))}
                     </Select>
@@ -256,7 +257,7 @@ export function AddLotto({ groups, lottos }: { groups: LottoGroupInfo[]; lottos:
                   {review.map(([label, text]) => (
                     <div key={label} className="contents">
                       <dt className="text-ink-3">{label}</dt>
-                      <dd className="font-medium break-words text-ink">{text}</dd>
+                      <dd className="font-medium wrap-break-word text-ink">{text}</dd>
                     </div>
                   ))}
                 </dl>

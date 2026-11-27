@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { bkkMs } from "@/core/rules/time";
 import { toRound, roundLabel, type RoundRow } from "@/server/services/rounds";
 import { formatDate } from "./format";
-import { roundName, scheduledClose } from "./labels";
+import { lottoName, lottoShort, roundName, scheduledClose } from "./labels";
 import th from "./locales/th";
 
 const planned = bkkMs(2026, 11, 27, 20, 15);
@@ -37,5 +37,30 @@ describe("a draw closed early keeps its own date", () => {
 
   test("a draw that was not closed early is named from its closing time", () => {
     expect(scheduledClose(toRound({ ...row, planned_close: null }))).toBe(early);
+  });
+});
+
+describe("a lotto's name", () => {
+  const l = { slug: "x", name: "ลาวสตาร์", shortName: "สตาร์", i18n: { en: { name: "Lao Star", short: "Star" }, lo: { name: "ລາວສະຕາ" } } };
+  const dict = { lotto: { ...th.lotto, names: { x: { name: "Dict", short: "D" } } } };
+
+  test("is the Thai one in Thai", () => {
+    expect(lottoName(l, "th", dict)).toBe("ลาวสตาร์");
+    expect(lottoShort(l, "th", dict)).toBe("สตาร์");
+  });
+
+  test("comes from the database first", () => {
+    expect(lottoName(l, "en", dict)).toBe("Lao Star");
+    expect(lottoShort(l, "en", dict)).toBe("Star");
+  });
+
+  test("falls back to the dictionary, field by field", () => {
+    expect(lottoShort(l, "lo", dict)).toBe("D");
+    expect(lottoName(l, "km", dict)).toBe("Dict");
+  });
+
+  test("ends at the Thai name", () => {
+    expect(lottoName(l, "km", th)).toBe("ลาวสตาร์");
+    expect(lottoShort(l, "km", th)).toBe("สตาร์");
   });
 });

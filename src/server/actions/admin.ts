@@ -371,7 +371,10 @@ const lottoSchema = z.object({
   schedule: scheduleSchema,
   rates: z.record(z.string(), z.number().int().positive().max(10_000_000)),
   risk: z.record(z.string(), profileSchema),
+  i18n: z.unknown(),
 });
+
+const lottoNames = (input: unknown) => cleanContentI18n(input, { name: 60, short: 30 });
 
 export async function saveLottoAction(lottoId: number, input: unknown): Promise<ActionResult> {
   const g = await gate("lottos.manage");
@@ -390,6 +393,12 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
   if (!(await listGroups()).some((x) => x.code === v.group)) return { ok: false, error: g.e.admin.groupNotFound };
   if (before && !mayMoveGroup(before.group, v.group)) return { ok: false, error: g.e.admin.groupLocked };
   if (v.autoResult && !mayAutoResult(v.group)) return { ok: false, error: g.e.admin.autoResultNotAllowed };
+  // Written on its own, like auto_rounds below: the column arrives with member migration 17. First, so a refusal changes nothing.
+  const names = lottoNames(v.i18n);
+  if (before && v.i18n !== undefined && json.str(lottoNames(before.i18n)) !== json.str(names)) {
+    const stored = await tolerateMissingColumn(() => run("UPDATE lottos SET i18n = ? WHERE id = ?", json.str(names), lottoId), null);
+    if (stored === null) return { ok: false, error: g.e.admin.lottoNamesNeedMigration };
+  }
   // Written on its own, and only when switched: the column arrives with member migration 11, and
   // saving anything else must keep working before it does.
   const switched = before !== undefined && before.autoRounds !== v.autoRounds;
@@ -415,7 +424,7 @@ export async function saveLottoAction(lottoId: number, input: unknown): Promise<
   ).changes;
   if (!changed) return { ok: false, error: g.e.admin.lottoNotFound };
   invalidateLottos();
-  await audit(g.viewer.id, "lotto.update", `lotto:${lottoId}`, v, Date.now(), g.ip);
+  await audit(g.viewer.id, "lotto.update", `lotto:${lottoId}`, v.i18n === undefined ? v : { ...v, i18n: names }, Date.now(), g.ip);
   // A new schedule or draw delay must reach rounds already created (only those without bills or guesses).
   if (!before || switched || json.str(before.schedule) !== json.str(v.schedule) || before.resultDelayMin !== v.resultDelayMin) {
     await reconcileRounds(lottoId, g.viewer.id).catch((error) => console.error("[lottos] round reconcile failed:", error instanceof Error ? error.message : error));

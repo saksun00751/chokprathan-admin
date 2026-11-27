@@ -13,13 +13,18 @@ export function roundName(r: { roundNo: number | null; closesAt: number; planned
   return r.roundNo != null ? fmt(t.lotto.round.numbered, { n: r.roundNo }) : fmt(t.lotto.round.dated, { date: formatDate(scheduledClose(r), lang) });
 }
 
-/** A lotto's name in this language; lottos the dictionary does not know keep their own name. */
-export function lottoName(l: { slug: string; name: string }, t: Pick<Dict, "lotto">): string {
-  return t.lotto.names[l.slug]?.name ?? l.name;
+/** `lottos.i18n`: names per language. Thai stays in `name` / `short_name`. */
+export type LottoI18n = Partial<Record<string, { name?: string; short?: string }>>;
+
+/** A lotto's name in this language: its own translation, then the dictionary's, then the Thai name. */
+export function lottoName(l: { slug: string; name: string; i18n: LottoI18n }, lang: Locale, t: Pick<Dict, "lotto">): string {
+  if (lang === "th") return l.name;
+  return l.i18n[lang]?.name || t.lotto.names[l.slug]?.name || l.name;
 }
 
-export function lottoShort(l: { slug: string; shortName: string }, t: Pick<Dict, "lotto">): string {
-  return t.lotto.names[l.slug]?.short ?? l.shortName;
+export function lottoShort(l: { slug: string; shortName: string; i18n: LottoI18n }, lang: Locale, t: Pick<Dict, "lotto">): string {
+  if (lang === "th") return l.shortName;
+  return l.i18n[lang]?.short || t.lotto.names[l.slug]?.short || l.shortName;
 }
 
 export const bankName = (code: string | null | undefined, t: Pick<Dict, "lotto">) => (code ? (t.lotto.banks[code]?.name ?? code) : "-");

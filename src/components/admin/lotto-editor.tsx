@@ -1,6 +1,9 @@
 "use client";
 
 import { useI18n } from "@/i18n/client";
+import { LOCALE_META, LOCALES, type Locale } from "@/i18n/config";
+import { lottoName, type LottoI18n } from "@/i18n/labels";
+import { LangTabs } from "@/components/admin/lang-tabs";
 import { fmt, formatNumber } from "@/i18n/format";
 import { Search } from "lucide-react";
 import { useState, useTransition } from "react";
@@ -81,7 +84,7 @@ export function LottoList({ lottos, ...shared }: Shared & { lottos: Lotto[] }) {
 }
 
 function LottoItem({ lotto: l, hidden, ...shared }: Shared & { lotto: Lotto; hidden: boolean }) {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const lo = t.admin.ops.lottos;
   return (
     <li hidden={hidden}>
@@ -89,7 +92,7 @@ function LottoItem({ lotto: l, hidden, ...shared }: Shared & { lotto: Lotto; hid
         <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
           <Flag code={l.flag} className="size-7" />
           <span className="min-w-0 flex-1">
-            <span className="block font-semibold">{l.name}</span>
+            <span className="block font-semibold">{lottoName(l, lang, t)}</span>
             <span className="block text-xs text-ink-3">
               {scheduleText(l.schedule, t)}
             </span>
@@ -117,6 +120,7 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
   const [saved, setSaved] = useState({
     name: lotto.name,
     shortName: lotto.shortName,
+    i18n: lotto.i18n,
     group: lotto.group,
     enabled: lotto.enabled,
     autoResult: lotto.autoResult,
@@ -128,6 +132,9 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
   });
   const [name, setName] = useState(lotto.name);
   const [shortName, setShortName] = useState(lotto.shortName);
+  const [i18n, setI18n] = useState<LottoI18n>(lotto.i18n);
+  const [nameLang, setNameLang] = useState<Locale>("th");
+  const translate = (field: "name" | "short", value: string) => setI18n({ ...i18n, [nameLang]: { ...i18n[nameLang], [field]: value } });
   const [group, setGroup] = useState(lotto.group);
   const [enabled, setEnabled] = useState(lotto.enabled);
   const [autoResult, setAutoResult] = useState(lotto.autoResult);
@@ -161,6 +168,10 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
         const rows = changedRows<string>([
           { label: lo.name, before: saved.name, after: name },
           { label: lo.shortName, before: saved.shortName, after: shortName },
+          ...LOCALES.filter((l) => l !== "th").flatMap((l) => [
+            { label: `${lo.name} (${LOCALE_META[l].native})`, before: saved.i18n[l]?.name ?? "", after: i18n[l]?.name?.trim() ?? "" },
+            { label: `${lo.shortName} (${LOCALE_META[l].native})`, before: saved.i18n[l]?.short ?? "", after: i18n[l]?.short?.trim() ?? "" },
+          ]),
           { label: lo.groups.field, before: labelOfCode(saved.group), after: labelOfCode(group) },
           { label: lo.enabled, before: onOff(saved.enabled), after: onOff(enabled) },
           { label: lo.autoResult, before: onOff(saved.autoResult), after: onOff(autoResult) },
@@ -192,7 +203,7 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
           note: k.saveRiskNote,
         });
         if (!answer.ok) return;
-        const next = { name, shortName, group, enabled, autoResult, autoRounds, resultDelayMin: delay, schedule, rates: overrideRates, risk: customRisk };
+        const next = { name, shortName, i18n, group, enabled, autoResult, autoRounds, resultDelayMin: delay, schedule, rates: overrideRates, risk: customRisk };
         start(async () => {
           const r = await saveLottoAction(lotto.id, next);
           if (r.ok) {
@@ -219,9 +230,21 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
 
       {/* Panels are hidden rather than removed: one save button covers all three. */}
       <div role="tabpanel" hidden={tab !== "general"}>
+      <div className="mb-3 flex">
+        <LangTabs value={nameLang} onChange={setNameLang} label={t.admin.content.langTabs} />
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <TextField label={lo.name} value={name} onChange={setName} />
-        <TextField label={lo.shortName} value={shortName} onChange={setShortName} />
+        {nameLang === "th" ? (
+          <>
+            <TextField label={lo.name} value={name} onChange={setName} />
+            <TextField label={lo.shortName} value={shortName} onChange={setShortName} />
+          </>
+        ) : (
+          <>
+            <TranslationField label={lo.name} lang={nameLang} value={i18n[nameLang]?.name ?? ""} thai={name} maxLength={60} onChange={(v) => translate("name", v)} />
+            <TranslationField label={lo.shortName} lang={nameLang} value={i18n[nameLang]?.short ?? ""} thai={shortName} maxLength={30} onChange={(v) => translate("short", v)} />
+          </>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs text-ink-3">{lo.groups.field}</span>
           <select
@@ -339,5 +362,22 @@ function LottoForm({ lotto, groups, rates, risk }: Shared & { lotto: Lotto }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** One name in another language. Left empty, members see the dictionary's name or the Thai one, shown as the placeholder. */
+function TranslationField({ label, lang, value, thai, maxLength, onChange }: { label: string; lang: Locale; value: string; thai: string; maxLength: number; onChange: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-xs text-ink-3">{label}</span>
+      <input
+        lang={LOCALE_META[lang].htmlLang}
+        value={value}
+        placeholder={thai}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-10 rounded-control border border-line-strong bg-surface px-3"
+      />
+    </label>
   );
 }

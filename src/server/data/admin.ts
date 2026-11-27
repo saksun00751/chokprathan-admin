@@ -89,7 +89,7 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
     return [
       {
         id: r.id,
-        lotto: lottoShort(lotto, t),
+        lotto: lottoShort(lotto, lang, t),
         flag: lotto.flag,
         label: roundName(r, lang, t),
         opensAt: r.opensAt,
@@ -103,9 +103,9 @@ export async function getAdminRounds({ day: dayParam, lottoId, phase }: { day?: 
   });
   // The lotteries a round can be made for by hand; empty for staff who may not do that.
   const creatable = can(await requireEmployee("rounds.view"), "lottos.manage")
-    ? lottos.filter((l) => l.enabled).map((l) => ({ id: l.id, name: lottoShort(l, t), delayMin: l.resultDelayMin }))
+    ? lottos.filter((l) => l.enabled).map((l) => ({ id: l.id, name: lottoShort(l, lang, t), delayMin: l.resultDelayMin }))
     : [];
-  return { serverNow: now, day, rounds: list, lottos: lottos.map((l) => ({ id: l.id, name: lottoShort(l, t) })), creatable };
+  return { serverNow: now, day, rounds: list, lottos: lottos.map((l) => ({ id: l.id, name: lottoShort(l, lang, t) })), creatable };
 }
 
 /** Rounds past their close time that still wait for a result typed in by staff. */
@@ -136,8 +136,8 @@ export async function getAwaitingResults() {
     if (!lotto) return null;
     return {
       id: r.id,
-      lotto: lottoName(lotto, t),
-      shortName: lottoShort(lotto, t),
+      lotto: lottoName(lotto, lang, t),
+      shortName: lottoShort(lotto, lang, t),
       flag: lotto.flag,
       format: lotto.format as ResultFormat,
       label: roundName(r, lang, t),
@@ -192,7 +192,7 @@ export async function getAdminRound(roundId: number) {
     },
     lotto: {
       id: lotto.id,
-      name: lottoName(lotto, t),
+      name: lottoName(lotto, lang, t),
       flag: lotto.flag,
       format: lotto.format as ResultFormat,
       autoResult: lotto.autoResult,
@@ -350,7 +350,7 @@ export async function getMember(userId: number) {
       total_stake: b.total_stake,
       total_payout: b.total_payout,
       created_at: b.created_at,
-      lotto: ((l) => (l ? lottoShort(l, t) : "-"))(lottos.find((l) => l.id === b.lotto_id)),
+      lotto: ((l) => (l ? lottoShort(l, lang, t) : "-"))(lottos.find((l) => l.id === b.lotto_id)),
       label: roundName({ roundNo: b.round_no, closesAt: b.closes_at, plannedClose: b.planned_close }, lang, t),
     })),
     tx,
@@ -443,11 +443,11 @@ export async function getAdminLottos(): Promise<Lotto[]> {
 }
 
 export async function getAdminPackages() {
-  const { t } = await getI18n();
+  const { lang, t } = await getI18n();
   await requireEmployee("lottos.manage");
   await io();
   const [packages, lottos] = await Promise.all([listPackages(), listLottos({ includeDisabled: true })]);
-  return { packages, lottos: lottos.map((l) => ({ id: l.id, name: lottoName(l, t), format: l.format as ResultFormat })) };
+  return { packages, lottos: lottos.map((l) => ({ id: l.id, name: lottoName(l, lang, t), format: l.format as ResultFormat })) };
 }
 
 export async function getAdminLottoGroups(): Promise<LottoGroupInfo[]> {
@@ -606,6 +606,7 @@ export async function getBlocklistPage({ kind, search }: { kind?: string; search
 
 /** The activities page: settings, the lotteries guesses can be placed on, and what the activities cost. */
 export async function getAdminActivities() {
+  const { lang, t } = await getI18n();
   const viewer = await requireEmployee("promotions.manage");
   await io();
   const now = Date.now();
@@ -635,7 +636,7 @@ export async function getAdminActivities() {
   return {
     settings,
     pointRule: rule,
-    lottos: lottos.map((l) => ({ id: l.id, name: l.name, format: l.format, enabled: l.enabled })),
+    lottos: lottos.map((l) => ({ id: l.id, name: lottoName(l, lang, t), format: l.format, enabled: l.enabled })),
     stats: { wheelToday: stat(wheelToday), wheelWeek: stat(wheelWeek), guessToday: stat(guessToday), guessWeek: stat(guessWeek) },
     wins: wins.map((w) => ({ ...w, amount: Number(w.amount), phone: view.phone(w.phone) })),
     ready: wheelToday !== undefined,

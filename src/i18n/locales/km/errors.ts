@@ -302,6 +302,7 @@ export const errors: typeof th = {
       done: "បានបង្កើតវគ្គ",
     },
     autoRoundsNeedsMigration: "មូលដ្ឋានទិន្នន័យមិនទាន់គាំទ្រ ត្រូវដំណើរការ migration 11 របស់គេហទំព័រសមាជិកសិន",
+    lottoNamesNeedMigration: "មូលដ្ឋានទិន្នន័យមិនទាន់គាំទ្រឈ្មោះច្រើនភាសា ត្រូវដំណើរការ migration 17 របស់គេហទំព័រសមាជិកសិន",
     lottoBadSlug: "កូដប្រើបានតែ a-z លេខ និងសញ្ញា - ចំនួន ២–៤០ តួ ផ្តើមដោយអក្សរ",
     lottoSlugTaken: "មានឆ្នោតប្រើកូដនេះរួចហើយ",
     lottoCreated: "បានបន្ថែម {name} ហើយនៅបិទនៅឡើយ",

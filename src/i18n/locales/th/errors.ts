@@ -301,6 +301,7 @@ export const errors = {
       done: "สร้างงวดแล้ว",
     },
     autoRoundsNeedsMigration: "ฐานข้อมูลยังไม่รองรับ ต้องรัน migration 11 ของเว็บสมาชิกก่อน",
+    lottoNamesNeedMigration: "ฐานข้อมูลยังไม่รองรับชื่อหลายภาษา ต้องรัน migration 17 ของเว็บสมาชิกก่อน",
     lottoBadSlug: "รหัสใช้ได้เฉพาะ a-z ตัวเลข และขีดกลาง 2–40 ตัว ขึ้นต้นด้วยตัวอักษร",
     lottoSlugTaken: "มีหวยใช้รหัสนี้แล้ว",
     lottoCreated: "เพิ่ม {name} แล้ว ยังปิดใช้งานอยู่",

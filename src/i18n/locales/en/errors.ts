@@ -302,6 +302,7 @@ export const errors: typeof th = {
       done: "Draw created",
     },
     autoRoundsNeedsMigration: "Not supported by the database yet: run member migration 11 first",
+    lottoNamesNeedMigration: "The database does not store translated names yet: run member migration 17 first",
     lottoBadSlug: "The code takes a-z, digits and hyphens, 2–40 characters, starting with a letter",
     lottoSlugTaken: "Another lottery already uses this code",
     lottoCreated: "{name} added; it is still switched off",

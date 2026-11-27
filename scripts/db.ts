@@ -7,13 +7,18 @@
  *   create-owner --username U --password P [--name N]
  *                                   create the first owner account (adds the owner role if missing);
  *                                   it must change its password at first sign-in
+ *   import-lottos <dump.sql> [--apply]
+ *                                   add the lotteries of the old system's lotto_markets dump, switched off;
+ *                                   without --apply it only lists them (needs member migration 17)
  *
  * Reads DATABASE_URL from the environment (.env.local is loaded by the npm script). The admin app
- * never creates or changes member tables; their schema belongs to the member repo.
+ * never creates or changes member tables' schema; it belongs to the member repo.
  */
+import { readFile } from "node:fs/promises";
 import { ALL, DEFAULT_ROLES } from "@/domain/permissions";
 import { loadDict } from "@/i18n/dictionaries";
 import { closePool, json, q1, run, tx } from "@/server/db";
+import { importLottos } from "@/server/db/import-lottos";
 import { importStaff } from "@/server/db/import-staff";
 import { migrate, schemaVersion } from "@/server/db/migrate";
 import { audit } from "@/server/services/audit";
@@ -75,6 +80,21 @@ async function createOwner() {
   log(`created owner ${username} (must change the password at first sign-in)`);
 }
 
+async function importLottoDump() {
+  const file = process.argv[3];
+  if (!file || file.startsWith("--")) throw new Error("usage: import-lottos <dump.sql> [--apply]");
+  const r = await importLottos(await readFile(file, "utf8"), { apply: flag("apply") });
+  for (const l of r.lottos) {
+    const s = l.schedule;
+    const when = s.kind === "interval" ? s.firstClose : `${s.kind} ${s.days.join(",")} ${s.close}`;
+    log(`  ${l.slug.padEnd(26)} ${l.group.padEnd(8)} ${l.format.padEnd(9)} ${l.flag}  ${when} +${l.resultDelayMin}m  ${l.name} | ${l.i18n.en?.name}`);
+  }
+  for (const s of r.skipped) log(`skipped ${s.slug}: ${s.reason}`);
+  for (const w of r.warnings) log(`check ${w}`);
+  for (const p of r.problems) log(`problem ${p}`);
+  log(r.applied ? `added ${r.lottos.length} lotteries, all switched off` : `${r.lottos.length} to add, ${r.skipped.length} skipped${flag("apply") ? "" : " (dry run: add --apply to write)"}`);
+}
+
 async function main() {
   switch (cmd) {
     case "status": {
@@ -96,12 +116,16 @@ async function main() {
       log(`employee_roles: ${r.roles}, employees: ${r.employees}${flag("refresh") ? " (refreshed from the member tables)" : ""}`);
       break;
     }
+    case "import-lottos": {
+      await importLottoDump();
+      break;
+    }
     case "create-owner": {
       await createOwner();
       break;
     }
     default:
-      log("commands: status | migrate | import-staff [--refresh] | create-owner --username U --password P [--name N]");
+      log("commands: status | migrate | import-staff [--refresh] | create-owner --username U --password P [--name N] | import-lottos <dump.sql> [--apply]");
       process.exitCode = 1;
   }
 }

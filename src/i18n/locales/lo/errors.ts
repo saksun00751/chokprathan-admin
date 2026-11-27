@@ -302,6 +302,7 @@ export const errors: typeof th = {
       done: "ສ້າງງວດແລ້ວ",
     },
     autoRoundsNeedsMigration: "ຖານຂໍ້ມູນຍັງບໍ່ຮອງຮັບ ຕ້ອງຣັນ migration 11 ຂອງເວັບສະມາຊິກກ່ອນ",
+    lottoNamesNeedMigration: "ຖານຂໍ້ມູນຍັງບໍ່ຮອງຮັບຊື່ຫຼາຍພາສາ ຕ້ອງຣັນ migration 17 ຂອງເວັບສະມາຊິກກ່ອນ",
     lottoBadSlug: "ລະຫັດໃຊ້ໄດ້ສະເພາະ a-z ຕົວເລກ ແລະ ຂີດກາງ 2–40 ຕົວ ຂຶ້ນຕົ້ນດ້ວຍຕົວອັກສອນ",
     lottoSlugTaken: "ມີຫວຍໃຊ້ລະຫັດນີ້ແລ້ວ",
     lottoCreated: "ເພີ່ມ {name} ແລ້ວ ຍັງປິດໃຊ້ງານຢູ່",
