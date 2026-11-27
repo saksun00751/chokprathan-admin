@@ -48,7 +48,11 @@ next-env.d.ts
 /scripts
 
 # docs
-/docs/*.md
+/docs/
 
 # md Files
 *.md
+AGENTS.md
+
+# SQL files
+*.sql
